@@ -31,6 +31,14 @@ async def sync_sales(sales: List[schemas.SaleCreate], db: Session = Depends(get_
             print(f"Error syncing sale {sale.id}: {e}")
     return synced_sales
 
+@router.post("/products", response_model=schemas.Product)
+async def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
+    db_product = models.Product(**product.dict())
+    db.add(db_product)
+    db.commit()
+    db.refresh(db_product)
+    return db_product
+
 @router.get("/products/{branch_id}", response_model=List[schemas.Product])
 async def read_products(branch_id: int, db: Session = Depends(get_db)):
     return crud.get_products(db, branch_id)

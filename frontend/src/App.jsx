@@ -4,6 +4,7 @@ import { LayoutDashboard, ShoppingCart, Package, Users, Settings, LogOut, Menu }
 import Dashboard from './components/Dashboard';
 import POS from './components/POS';
 import Customers from './components/Customers';
+import Inventory from './components/Inventory';
 import './styles/index.css';
 
 const SidebarItem = ({ to, icon: Icon, label, active }) => (
@@ -57,7 +58,7 @@ const App = () => {
                     <Routes>
                         <Route path="/" element={<Dashboard />} />
                         <Route path="/pos" element={<POS />} />
-                        <Route path="/inventory" element={<div>Módulo de Inventario (Próximamente)</div>} />
+                        <Route path="/inventory" element={<Inventory />} />
                         <Route path="/customers" element={<Customers />} />
                         <Route path="/settings" element={<div>Configuración (Próximamente)</div>} />
                     </Routes>

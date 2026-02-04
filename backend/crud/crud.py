@@ -27,6 +27,12 @@ def create_sale(db: Session, sale_data: schemas.SaleCreate):
     )
     db.add(db_sale)
     
+    # Handle Credit (Fiado)
+    if sale_data.payment_method == "CREDIT" and sale_data.customer_id:
+        customer = db.query(models.Customer).filter(models.Customer.id == sale_data.customer_id).with_for_update().first()
+        if customer:
+            customer.current_balance += sale_data.total
+    
     for item in sale_data.items:
         # Row-level lock for stock update
         product = db.query(models.Product).filter(models.Product.id == item.product_id).with_for_update().first()

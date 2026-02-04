@@ -38,3 +38,22 @@ class SaleCreate(BaseModel):
     items: List[SaleItemBase]
     total: float
     payment_method: str
+
+class CustomerBase(BaseModel):
+    name: str
+    phone: Optional[str] = None
+    credit_limit: float = 0.0
+    branch_id: int
+
+class CustomerCreate(CustomerBase):
+    pass
+
+class Customer(CustomerBase):
+    id: int
+    current_balance: float
+    class Config:
+        from_attributes = True
+
+class PaymentCreate(BaseModel):
+    amount: float
+    user_id: int

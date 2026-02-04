@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { LayoutDashboard, ShoppingCart, Package, Users, Settings, LogOut, Menu } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import POS from './components/POS';
+import Customers from './components/Customers';
 import './styles/index.css';
 
 const SidebarItem = ({ to, icon: Icon, label, active }) => (
@@ -57,7 +58,7 @@ const App = () => {
                         <Route path="/" element={<Dashboard />} />
                         <Route path="/pos" element={<POS />} />
                         <Route path="/inventory" element={<div>Módulo de Inventario (Próximamente)</div>} />
-                        <Route path="/customers" element={<div>Módulo de Clientes (Próximamente)</div>} />
+                        <Route path="/customers" element={<Customers />} />
                         <Route path="/settings" element={<div>Configuración (Próximamente)</div>} />
                     </Routes>
                 </main>

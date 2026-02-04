@@ -7,13 +7,23 @@ const POS = () => {
     const [cart, setCart] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('CASH');
-    const [customer, setCustomer] = useState(null);
+    const [customers, setCustomers] = useState([]);
+    const [selectedCustomer, setSelectedCustomer] = useState(null);
     const searchInputRef = useRef(null);
 
-    // Focus search on mount and after actions
     useEffect(() => {
+        fetchCustomers();
         searchInputRef.current?.focus();
     }, []);
+
+    const fetchCustomers = async () => {
+        try {
+            const response = await axios.get('http://localhost:8000/api/v1/customers/1');
+            setCustomers(response.data);
+        } catch (err) {
+            console.error('Offline or error: could not fetch customers');
+        }
+    };
 
     const addToCart = (product) => {
         setCart(prev => {
@@ -45,10 +55,15 @@ const POS = () => {
 
     const handleFinishSale = async () => {
         if (cart.length === 0) return;
+        if (paymentMethod === 'CREDIT' && !selectedCustomer) {
+            alert('Seleccione un cliente para pagar al fiado');
+            return;
+        }
 
         const sale = {
             id: crypto.randomUUID(),
-            external_id: Date.now(), // Simplified local ID
+            external_id: Date.now(),
+            customer_id: selectedCustomer?.id || null,
             items: cart,
             total,
             paymentMethod,
@@ -59,7 +74,8 @@ const POS = () => {
         try {
             await db.sales.add(sale);
             setCart([]);
-            alert('Venta registrada localmente. Sincronizando en segundo plano...');
+            setSelectedCustomer(null);
+            alert('Venta registrada. El saldo del cliente se actualizará al sincronizar.');
         } catch (err) {
             console.error('Error saving sale:', err);
         }
@@ -69,23 +85,39 @@ const POS = () => {
         <div className="pos-container" style={{ display: 'grid', gridTemplateColumns: '1fr 400px', height: '100vh', gap: '1px', background: 'var(--glass-border)' }}>
             {/* Search and Products Section */}
             <div className="main-section" style={{ padding: '24px', background: 'var(--bg-gradient)', overflowY: 'auto' }}>
-                <div className="search-bar glass-panel card" style={{ padding: '12px', marginBottom: '24px', flexDirection: 'row', alignItems: 'center' }}>
-                    <Search size={20} color="var(--text-muted)" />
-                    <input
-                        ref={searchInputRef}
-                        type="text"
-                        className="glass-input"
-                        style={{ flex: 1, border: 'none', background: 'transparent' }}
-                        placeholder="Escanear código o buscar producto (F1)..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && searchQuery) {
-                                // Mock search for now
-                                addToCart({ id: Date.now(), name: searchQuery, price: 100 });
-                            }
-                        }}
-                    />
+                <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+                    <div className="search-bar glass-panel card" style={{ flex: 1, padding: '12px', display: 'flex', flexDirection: 'row', alignItems: 'center', marginBottom: 0 }}>
+                        <Search size={20} color="var(--text-muted)" />
+                        <input
+                            ref={searchInputRef}
+                            type="text"
+                            className="glass-input"
+                            style={{ flex: 1, border: 'none', background: 'transparent' }}
+                            placeholder="Escanear código o buscar producto (F1)..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && searchQuery) {
+                                    // Mock search for now
+                                    addToCart({ id: Date.now(), name: searchQuery, price: 100 });
+                                }
+                            }}
+                        />
+                    </div>
+
+                    <div className="customer-select glass-panel card" style={{ width: '250px', padding: '0 12px', display: 'flex', flexDirection: 'row', alignItems: 'center', marginBottom: 0 }}>
+                        <User size={18} color="var(--text-muted)" style={{ marginRight: '8px' }} />
+                        <select
+                            style={{ background: 'transparent', border: 'none', color: 'white', width: '100%', outline: 'none' }}
+                            onChange={(e) => setSelectedCustomer(customers.find(c => c.id == e.target.value))}
+                            value={selectedCustomer?.id || ''}
+                        >
+                            <option value="" style={{ background: '#1e1b4b' }}>Consumidor Final</option>
+                            {customers.map(c => (
+                                <option key={c.id} value={c.id} style={{ background: '#1e1b4b' }}>{c.name}</option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
 
                 <div className="product-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '16px' }}>
@@ -122,17 +154,22 @@ const POS = () => {
                         <span>${total.toFixed(2)}</span>
                     </div>
 
-                    <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                         <button
-                            className={`glass-button ${paymentMethod === 'CASH' ? 'active' : ''}`}
+                            className="glass-button"
                             onClick={() => setPaymentMethod('CASH')}
-                            style={{ background: paymentMethod === 'CASH' ? 'var(--primary)' : 'var(--glass-highlight)' }}
+                            style={{ padding: '8px', fontSize: '0.8rem', background: paymentMethod === 'CASH' ? 'var(--primary)' : 'rgba(255,255,255,0.05)' }}
                         >Efectivo</button>
                         <button
-                            className={`glass-button ${paymentMethod === 'CARD' ? 'active' : ''}`}
+                            className="glass-button"
                             onClick={() => setPaymentMethod('CARD')}
-                            style={{ background: paymentMethod === 'CARD' ? 'var(--primary)' : 'var(--glass-highlight)' }}
+                            style={{ padding: '8px', fontSize: '0.8rem', background: paymentMethod === 'CARD' ? 'var(--primary)' : 'rgba(255,255,255,0.05)' }}
                         >Tarjeta</button>
+                        <button
+                            className="glass-button"
+                            onClick={() => setPaymentMethod('CREDIT')}
+                            style={{ padding: '8px', fontSize: '0.8rem', background: paymentMethod === 'CREDIT' ? 'var(--accent-warning)' : 'rgba(255,255,255,0.05)', color: paymentMethod === 'CREDIT' ? 'black' : 'white' }}
+                        >Fiado</button>
                     </div>
 
                     <button

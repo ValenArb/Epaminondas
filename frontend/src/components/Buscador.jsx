@@ -1,30 +1,24 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, Settings, Edit2, Plus, Trash2, Package } from 'lucide-react';
 import { Modal, ConfirmDialog, Notification } from './Modal';
+import api from '../api';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
-const uid = () => Date.now() + Math.random();
-
-const INIT_CATEGORIAS = [
-  { id: 1, nombre: 'Librería Escolar', margen_porcentaje: 45 },
-  { id: 2, nombre: 'Golosinas', margen_porcentaje: 30 },
-  { id: 3, nombre: 'Regalería', margen_porcentaje: 60 },
-  { id: 4, nombre: 'Fotocopias', margen_porcentaje: 100 },
-];
-
-const INIT_PRODUCTOS = [
-  { id: 1, isbn: '978987456123', descripcion: 'Cuaderno Rivadavia Tapa Dura 50h', costo_base: 1500, categoria_id: 1 },
-  { id: 2, isbn: '779123456789', descripcion: 'Lapicera Bic Azul', costo_base: 200, categoria_id: 1 },
-  { id: 3, isbn: '779987654321', descripcion: 'Alfajor Jorgito Chocolate', costo_base: 350, categoria_id: 2 },
-  { id: 4, isbn: '978111222333', descripcion: 'Taza de Cerámica Día de la Madre', costo_base: 4000, categoria_id: 3 },
-];
 
 export default function Buscador() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showCategories, setShowCategories] = useState(false);
-  const [categorias, setCategorias] = useState(INIT_CATEGORIAS);
-  const [productos, setProductos] = useState(INIT_PRODUCTOS);
+  const [categorias, setCategorias] = useState([]);
+  const [productos, setProductos] = useState([]);
   const [notif, setNotif] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([api.getCategorias(), api.getProductos()])
+      .then(([cats, prods]) => { setCategorias(cats); setProductos(prods); })
+      .catch(() => notify('❌ Error al cargar datos'))
+      .finally(() => setLoading(false));
+  }, []);
 
   // Modals
   const [mCategoria, setMCategoria] = useState(false);
@@ -65,26 +59,37 @@ export default function Buscador() {
     );
   }, [searchTerm, productos, categorias]);
 
-  const crearCategoria = () => {
+  const crearCategoria = async () => {
     if (!ncNombre) return;
-    setCategorias([...categorias, { id: uid(), nombre: ncNombre, margen_porcentaje: parseFloat(ncMargen) || 0 }]);
-    notify(`✅ Categoría "${ncNombre}" creada`);
-    setNcNombre(''); setNcMargen(''); setMCategoria(false);
+    try {
+      const cat = await api.createCategoria({ nombre: ncNombre, margen_porcentaje: parseFloat(ncMargen) || 0 });
+      setCategorias([...categorias, cat]);
+      notify(`✅ Categoría "${ncNombre}" creada`);
+      setNcNombre(''); setNcMargen(''); setMCategoria(false);
+    } catch { notify('❌ Error al crear categoría'); }
   };
 
-  const crearProducto = () => {
+  const crearProducto = async () => {
     if (!npDesc || !npCatId) return;
-    setProductos([...productos, { id: uid(), isbn: npIsbn, descripcion: npDesc, costo_base: parseFloat(npCosto) || 0, categoria_id: Number(npCatId) }]);
-    notify(`✅ Producto "${npDesc}" creado`);
-    setNpIsbn(''); setNpDesc(''); setNpCosto(''); setNpCatId(''); setMProducto(false);
+    try {
+      const prod = await api.createProducto({ isbn: npIsbn, descripcion: npDesc, costo_base: parseFloat(npCosto) || 0, categoria_id: Number(npCatId) });
+      setProductos([...productos, prod]);
+      notify(`✅ Producto "${npDesc}" creado`);
+      setNpIsbn(''); setNpDesc(''); setNpCosto(''); setNpCatId(''); setMProducto(false);
+    } catch { notify('❌ Error al crear producto'); }
   };
 
-  const actualizarCosto = () => {
+  const actualizarCosto = async () => {
     const costo = parseFloat(ecCosto);
     if (!mEditCosto || isNaN(costo)) return;
-    setProductos(productos.map(p => p.id === mEditCosto ? { ...p, costo_base: costo } : p));
-    notify(`✅ Costo actualizado`);
-    setEcCosto(''); setMEditCosto(null);
+    const prod = productos.find(p => p.id === mEditCosto);
+    if (!prod) return;
+    try {
+      await api.updateProducto(mEditCosto, { isbn: prod.isbn, descripcion: prod.descripcion, costo_base: costo, categoria_id: prod.categoria_id });
+      setProductos(productos.map(p => p.id === mEditCosto ? { ...p, costo_base: costo } : p));
+      notify(`✅ Costo actualizado`);
+      setEcCosto(''); setMEditCosto(null);
+    } catch { notify('❌ Error al actualizar'); }
   };
 
   return (

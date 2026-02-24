@@ -1,38 +1,24 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Users, Plus, Package, Clock, Check, Settings, ChevronDown, ChevronRight, Edit2, Trash2, Printer, DollarSign } from 'lucide-react';
 import { Modal, ConfirmDialog, Notification } from './Modal';
+import api from '../api';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
-const uid = () => Date.now() + Math.random();
 const today = () => new Date().toISOString().split('T')[0];
-
-const INIT_ANIOS = [
-    {
-        id: 1, nombre: '1er Año', materiales: [
-            { id: 101, titulo: 'Módulo Matemática 1', descripcion: '80 páginas', precio: 2500 },
-            { id: 102, titulo: 'Apunte Historia 1', descripcion: '40 páginas', precio: 1200 },
-        ]
-    },
-    {
-        id: 2, nombre: '3er Año', materiales: [
-            { id: 201, titulo: 'Módulo Historia 3er Año', descripcion: '60 páginas', precio: 1800 },
-            { id: 202, titulo: 'Apunte Biología 3', descripcion: '30 páginas', precio: 900 },
-            { id: 203, titulo: 'Módulo Geografía 3', descripcion: '45 páginas', precio: 1500 },
-        ]
-    },
-];
-
-const INIT_FOTOS = [
-    { id: 1, solicitante: 'Prof. Gómez', material: 'Módulo Historia 3er Año', cantidad: 20, precio: 1800, pagos: [], estado: 'pendiente', fecha: '2024-02-01' },
-    { id: 2, solicitante: 'Martina (Alumna)', material: 'Apunte Biología 3', cantidad: 1, precio: 900, pagos: [{ id: 1, monto: 900, fecha: '2024-02-03', nota: 'Pagó todo' }], estado: 'listo', fecha: '2024-02-03' },
-    { id: 3, solicitante: 'Colegio San José', material: 'Exámenes de Matemática', cantidad: 30, precio: 4500, pagos: [{ id: 2, monto: 4500, fecha: '2024-01-28', nota: 'Pago completo' }], estado: 'entregado', fecha: '2024-01-28' },
-];
 
 export default function Fotocopias() {
     const [tab, setTab] = useState('tablero');
-    const [anios, setAnios] = useState(INIT_ANIOS);
-    const [fotos, setFotos] = useState(INIT_FOTOS);
+    const [anios, setAnios] = useState([]);
+    const [fotos, setFotos] = useState([]);
     const [notif, setNotif] = useState(null);
+
+    const reload = async () => {
+        try {
+            const [a, t] = await Promise.all([api.getAnios(), api.getTrabajos()]);
+            setAnios(a); setFotos(t);
+        } catch { notify('❌ Error al cargar datos'); }
+    };
+    useEffect(() => { reload(); }, []);
 
     // Modal states
     const [mNuevo, setMNuevo] = useState(false);
@@ -80,48 +66,51 @@ export default function Fotocopias() {
     const totalPagado = (f) => f.pagos.reduce((s, p) => s + p.monto, 0);
 
     // Handlers
-    const crearTrabajos = () => {
+    const crearTrabajos = async () => {
         if (!ntSolicitante || ntMats.length === 0) return;
         const cant = parseInt(ntCantidad) || 1;
-        const nuevos = ntMats.map(m => ({
-            id: uid(), solicitante: ntSolicitante, material: m.titulo, cantidad: cant, precio: m.precio * cant, pagos: [], estado: 'pendiente', fecha: today()
-        }));
-        setFotos([...fotos, ...nuevos]);
-        notify(`✅ ${nuevos.length} trabajo(s) creados para ${ntSolicitante}`);
-        setNtAnio(null); setNtMats([]); setNtSolicitante(''); setNtCantidad('1'); setMNuevo(false);
+        try {
+            for (const m of ntMats) {
+                await api.createTrabajo({ solicitante: ntSolicitante, material: m.titulo, cantidad: cant, precio: m.precio * cant, estado: 'pendiente', fecha: today() });
+            }
+            notify(`✅ ${ntMats.length} trabajo(s) creados para ${ntSolicitante}`);
+            setNtAnio(null); setNtMats([]); setNtSolicitante(''); setNtCantidad('1'); setMNuevo(false); reload();
+        } catch { notify('❌ Error al crear trabajos'); }
     };
 
-    const crearManual = () => {
+    const crearManual = async () => {
         if (!mmSolicitante || !mmMaterial) return;
-        setFotos([...fotos, { id: uid(), solicitante: mmSolicitante, material: mmMaterial, cantidad: parseInt(mmCantidad) || 1, precio: parseFloat(mmPrecio) || 0, pagos: [], estado: 'pendiente', fecha: today() }]);
-        notify(`✅ Trabajo creado para ${mmSolicitante}`);
-        setMmSolicitante(''); setMmMaterial(''); setMmCantidad('1'); setMmPrecio(''); setMManual(false);
+        try {
+            await api.createTrabajo({ solicitante: mmSolicitante, material: mmMaterial, cantidad: parseInt(mmCantidad) || 1, precio: parseFloat(mmPrecio) || 0, estado: 'pendiente', fecha: today() });
+            notify(`✅ Trabajo creado para ${mmSolicitante}`);
+            setMmSolicitante(''); setMmMaterial(''); setMmCantidad('1'); setMmPrecio(''); setMManual(false); reload();
+        } catch { notify('❌ Error al crear trabajo'); }
     };
 
-    const registrarPago = () => {
+    const registrarPago = async () => {
         const monto = parseFloat(rpMonto);
         if (!mPago || !monto || monto <= 0) return;
-        setFotos(fotos.map(f => f.id === mPago ? { ...f, pagos: [...f.pagos, { id: uid(), monto, fecha: today(), nota: rpNota || 'Pago' }] } : f));
-        notify(`💰 Pago de ${fmt(monto)} registrado`);
-        setRpMonto(''); setRpNota(''); setMPago(null);
+        try {
+            await api.addPagoFotocopia(mPago, { monto, fecha: today(), nota: rpNota || 'Pago' });
+            notify(`💰 Pago de ${fmt(monto)} registrado`);
+            setRpMonto(''); setRpNota(''); setMPago(null); reload();
+        } catch { notify('❌ Error al registrar pago'); }
     };
 
     const registrarImpresion = () => {
         if (!impMaterial || !parseInt(impCantidad)) return;
         const cantidad = parseInt(impCantidad);
-        let remaining = cantidad, assigned = 0;
-        const up = fotos.map(f => {
-            if (remaining > 0 && f.material.toLowerCase() === impMaterial.toLowerCase() && f.estado === 'pendiente') {
-                if (remaining >= f.cantidad) { remaining -= f.cantidad; assigned++; return { ...f, estado: 'listo' }; }
-                else { const r = remaining; remaining = 0; return { ...f, cantidad: f.cantidad - r }; }
+        // Mark matching pending jobs as "listo"
+        let assigned = 0;
+        fotos.forEach(async f => {
+            if (f.material.toLowerCase() === impMaterial.toLowerCase() && f.estado === 'pendiente') {
+                try { await api.updateTrabajoEstado(f.id, 'listo'); assigned++; } catch { }
             }
-            return f;
         });
-        setFotos(up);
         let msg = `🖨️ ${cantidad} copias de "${impMaterial}"`;
-        if (assigned > 0) msg += `\n🔔 ${assigned} pedido(s) → "Listo"`;
         notify(msg);
         setImpMaterial(''); setImpCantidad('1'); setMImpresion(false);
+        setTimeout(reload, 500);
     };
 
     // Kanban Column

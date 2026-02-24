@@ -1,27 +1,30 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Users, Plus, Calculator, ArrowLeft } from 'lucide-react';
+import api from '../api';
 
-const MOCK_CLIENTES = [
-    {
-        id: 1, nombre: 'María (Mamá de Juan)', telefono: '1123456789', saldo_total: 1200,
-        transacciones: [{ id: 1, fecha: '2023-10-24', descripcion: '2 cartulinas y plasticola', monto: 1200, tipo: 'cargo' }]
-    },
-    {
-        id: 2, nombre: 'Prof. Carlos (Geografía)', telefono: '1198765432', saldo_total: -500,
-        transacciones: [
-            { id: 1, fecha: '2023-10-20', descripcion: 'Resmas', monto: 5000, tipo: 'cargo' },
-            { id: 2, fecha: '2023-10-22', descripcion: 'Abono en efectivo', monto: 5500, tipo: 'pago' }
-        ]
-    },
-];
+const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
+const today = () => new Date().toLocaleDateString('es-AR');
 
 export default function Libreta() {
-    const [clientes, setClientes] = useState(MOCK_CLIENTES);
+    const [clientes, setClientes] = useState([]);
     const [selectedClient, setSelectedClient] = useState(null);
+    const [notif, setNotif] = useState(null);
 
-    const formatMoney = (amount) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amount);
+    const reload = async () => {
+        try {
+            const c = await api.getClientes();
+            setClientes(c);
+            if (selectedClient) {
+                const updated = c.find(x => x.id === selectedClient.id);
+                if (updated) setSelectedClient(updated);
+            }
+        } catch { }
+    };
+    useEffect(() => { reload(); }, []);
 
-    const handleAddTransaction = (type) => {
+    const notify = (m) => { setNotif(m); setTimeout(() => setNotif(null), 4000); };
+
+    const handleAddTransaction = async (type) => {
         let desc = 'Abono en efectivo';
         if (type === 'cargo') {
             desc = prompt('¿Qué se llevó el cliente? (Detalle corto):');
@@ -35,24 +38,29 @@ export default function Libreta() {
         }
 
         const amount = parseFloat(amountStr);
-        const newTransaction = {
-            id: Date.now(),
-            fecha: new Date().toLocaleDateString('es-AR'),
-            descripcion: desc,
-            monto: amount,
-            tipo: type
-        };
+        try {
+            await api.addTransaccion(selectedClient.id, {
+                fecha: today(),
+                detalle: desc,
+                tipo_operacion: type === 'cargo' ? 'cargo' : 'abono',
+                monto: amount
+            });
+            notify(`✅ ${type === 'cargo' ? 'Fiado registrado' : 'Pago registrado'}`);
+            reload();
+        } catch {
+            notify('❌ Error al registrar');
+        }
+    };
 
-        const updatedClients = clientes.map(c => {
-            if (c.id === selectedClient.id) {
-                const newBalance = type === 'cargo' ? c.saldo_total + amount : c.saldo_total - amount;
-                return { ...c, saldo_total: newBalance, transacciones: [newTransaction, ...c.transacciones] };
-            }
-            return c;
-        });
-
-        setClientes(updatedClients);
-        setSelectedClient(updatedClients.find(c => c.id === selectedClient.id));
+    const handleNewClient = async () => {
+        const nombre = prompt('Nombre del cliente:');
+        if (!nombre) return;
+        const telefono = prompt('Teléfono (WhatsApp):') || '';
+        try {
+            await api.createCliente({ nombre, telefono });
+            notify(`✅ Cliente "${nombre}" creado`);
+            reload();
+        } catch { notify('❌ Error al crear cliente'); }
     };
 
     if (selectedClient) {
@@ -76,7 +84,7 @@ export default function Libreta() {
                             {isDebit ? 'DEUDA TOTAL' : 'SALDO A FAVOR'}
                         </p>
                         <p className={`text-5xl font-bold ${isDebit ? 'text-red-500' : 'text-green-500'}`}>
-                            {formatMoney(Math.abs(selectedClient.saldo_total))}
+                            {fmt(Math.abs(selectedClient.saldo_total))}
                         </p>
                     </div>
                 </div>
@@ -110,9 +118,9 @@ export default function Libreta() {
                             {selectedClient.transacciones.map(t => (
                                 <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="p-5 text-gray-500 whitespace-nowrap">{t.fecha}</td>
-                                    <td className="p-5 font-medium text-gray-800">{t.descripcion}</td>
-                                    <td className={`p-5 text-right font-bold text-lg ${t.tipo === 'cargo' ? 'text-red-500' : 'text-green-500'}`}>
-                                        {t.tipo === 'cargo' ? '+ ' : '- '}{formatMoney(t.monto)}
+                                    <td className="p-5 font-medium text-gray-800">{t.detalle}</td>
+                                    <td className={`p-5 text-right font-bold text-lg ${t.tipo_operacion === 'cargo' ? 'text-red-500' : 'text-green-500'}`}>
+                                        {t.tipo_operacion === 'cargo' ? '+ ' : '- '}{fmt(t.monto)}
                                     </td>
                                 </tr>
                             ))}
@@ -130,7 +138,7 @@ export default function Libreta() {
         <div className="p-8">
             <div className="flex justify-between items-center mb-8">
                 <h2 className="text-3xl font-bold text-gray-800">Libreta de Fiados</h2>
-                <button className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all">
+                <button onClick={handleNewClient} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all">
                     <Plus size={20} /> Nuevo Cliente
                 </button>
             </div>
@@ -155,12 +163,13 @@ export default function Libreta() {
                             <div className="flex justify-between items-end pt-4 border-t border-gray-100">
                                 <span className="text-sm text-gray-500 font-medium uppercase">{isDebit ? 'Deuda' : 'A favor'}</span>
                                 <span className={`text-2xl font-black tracking-tight ${isDebit ? 'text-red-500' : 'text-green-500'}`}>
-                                    {formatMoney(Math.abs(client.saldo_total))}
+                                    {fmt(Math.abs(client.saldo_total))}
                                 </span>
                             </div>
                         </div>
                     )
                 })}
+                {clientes.length === 0 && <p className="text-center py-12 text-gray-400 text-lg col-span-4">No hay clientes. Creá uno con el botón de arriba.</p>}
             </div>
         </div>
     );

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Plus, MessageCircle, Settings, Package, BookOpen, Trash2, ChevronDown, ChevronRight, Edit2, DollarSign, AlertTriangle, CheckCircle2, Clock, ShoppingCart, X, Search, Loader2 } from 'lucide-react';
 import { Modal, ConfirmDialog, Notification } from './Modal';
-
+import api from '../api';
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
 const uid = () => Date.now() + Math.random();
 const today = () => new Date().toISOString().split('T')[0];
@@ -180,60 +180,6 @@ function BookSelector({ grados, selGrado, setSelGrado, selBooks, setSelBooks, ma
     );
 }
 
-const INIT_GRADOS = [
-    {
-        id: 1, nombre: '1er Grado', libros: [
-            { id: 101, titulo: 'Matemática en Acción 1', editorial: 'Estrada', precio: 8500 },
-            { id: 102, titulo: 'Naturales 1', editorial: 'Santillana', precio: 7200 },
-            { id: 103, titulo: 'Sociales 1', editorial: 'Kapelusz', precio: 7800 },
-        ]
-    },
-    {
-        id: 2, nombre: '2do Grado', libros: [
-            { id: 201, titulo: 'Matemática en Acción 2', editorial: 'Estrada', precio: 8500 },
-            { id: 202, titulo: 'Manual Estrada 2', editorial: 'Estrada', precio: 12000 },
-        ]
-    },
-    {
-        id: 3, nombre: '3er Grado', libros: [
-            { id: 301, titulo: 'Ciencias Naturales 3', editorial: 'Aique', precio: 9500 },
-        ]
-    },
-];
-
-const INIT_PEDIDOS = [
-    {
-        id: 1, cliente: 'Laura', telefono: '1122334455', fecha: '2024-02-01',
-        libros: [
-            { id: 1, titulo: 'Matemática en Acción 1', precio: 8500, estado: 'faltante' },
-            { id: 2, titulo: 'Naturales 1', precio: 7200, estado: 'en_local' },
-        ],
-        pagos: [{ id: 1, monto: 5000, fecha: '2024-02-01', nota: 'Seña inicial' }]
-    },
-    {
-        id: 2, cliente: 'Pedro', telefono: '1199887766', fecha: '2024-02-05',
-        libros: [{ id: 3, titulo: 'Manual Estrada 2', precio: 12000, estado: 'en_local' }],
-        pagos: []
-    },
-    {
-        id: 3, cliente: 'Carlos', telefono: '1155667788', fecha: '2024-02-10',
-        libros: [
-            { id: 4, titulo: 'Matemática en Acción 1', precio: 8500, estado: 'faltante' },
-            { id: 5, titulo: 'Sociales 1', precio: 7800, estado: 'pedido' },
-            { id: 6, titulo: 'Naturales 1', precio: 7200, estado: 'faltante' },
-        ],
-        pagos: [
-            { id: 2, monto: 2000, fecha: '2024-02-10', nota: 'Seña' },
-            { id: 3, monto: 8000, fecha: '2024-02-15', nota: 'Pago parcial' },
-        ]
-    },
-];
-
-const INIT_STOCK = [
-    { id: 1, titulo: 'Naturales 1', tipo: 'nuevo', cantidad: 3 },
-    { id: 2, titulo: 'Manual Estrada 2', tipo: 'usado', cantidad: 1 },
-];
-
 const ESTADO_LIBRO = {
     faltante: { label: 'Falta pedir', cls: 'bg-red-100 text-red-700' },
     pedido: { label: 'Pedido', cls: 'bg-yellow-100 text-yellow-700' },
@@ -254,11 +200,19 @@ function calcPedido(p) {
 
 export default function Encargos() {
     const [tab, setTab] = useState('pedidos');
-    const [grados, setGrados] = useState(INIT_GRADOS);
-    const [pedidos, setPedidos] = useState(INIT_PEDIDOS);
-    const [stock, setStock] = useState(INIT_STOCK);
+    const [grados, setGrados] = useState([]);
+    const [pedidos, setPedidos] = useState([]);
+    const [stock, setStock] = useState([]);
     const [expanded, setExpanded] = useState(null);
     const [notif, setNotif] = useState(null);
+
+    const reload = async () => {
+        try {
+            const [g, p, s] = await Promise.all([api.getGrados(), api.getPedidos(), api.getStock()]);
+            setGrados(g); setPedidos(p); setStock(s);
+        } catch { notify('❌ Error al cargar datos'); }
+    };
+    useEffect(() => { reload(); }, []);
 
     // Modal states
     const [mNuevo, setMNuevo] = useState(false);
@@ -327,73 +281,56 @@ export default function Encargos() {
     const resetAgregar = () => { setAlGrado(null); setAlBooks([]); setAlManual({ titulo: '', precio: '' }); };
 
     // === HANDLERS ===
-    const crearPedido = () => {
+    const crearPedido = async () => {
         if (!npClient || npBooks.length === 0) return;
         const sena = parseFloat(npSena) || 0;
-        const p = {
-            id: uid(), cliente: npClient, telefono: npPhone, fecha: today(),
-            libros: npBooks.map(b => ({ id: uid(), titulo: b.titulo, precio: b.precio, estado: 'faltante' })),
-            pagos: sena > 0 ? [{ id: uid(), monto: sena, fecha: today(), nota: 'Seña inicial' }] : []
-        };
-        setPedidos([...pedidos, p]);
-        notify(`✅ Pedido creado para ${npClient} — ${npBooks.length} libro(s)`);
-        resetNuevo(); setMNuevo(false);
+        try {
+            await api.createPedido({ cliente: npClient, telefono: npPhone, fecha: today(), libros: npBooks.map(b => ({ titulo: b.titulo, precio: b.precio })), sena });
+            notify(`✅ Pedido creado para ${npClient} — ${npBooks.length} libro(s)`);
+            resetNuevo(); setMNuevo(false); reload();
+        } catch { notify('❌ Error al crear pedido'); }
     };
 
-    const agregarLibros = () => {
+    const agregarLibros = async () => {
         if (!mAgregar || alBooks.length === 0) return;
-        setPedidos(pedidos.map(p => p.id === mAgregar
-            ? { ...p, libros: [...p.libros, ...alBooks.map(b => ({ id: uid(), titulo: b.titulo, precio: b.precio, estado: 'faltante' }))] }
-            : p
-        ));
-        const ped = pedidos.find(p => p.id === mAgregar);
-        notify(`✅ ${alBooks.length} libro(s) agregados al pedido de ${ped?.cliente}`);
-        resetAgregar(); setMAgregar(null);
+        try {
+            for (const b of alBooks) { await api.addLibroPedido(mAgregar, { titulo: b.titulo, precio: b.precio }); }
+            const ped = pedidos.find(p => p.id === mAgregar);
+            notify(`✅ ${alBooks.length} libro(s) agregados al pedido de ${ped?.cliente}`);
+            resetAgregar(); setMAgregar(null); reload();
+        } catch { notify('❌ Error al agregar libros'); }
     };
 
-    const registrarPago = () => {
+    const registrarPago = async () => {
         const monto = parseFloat(rpMonto);
         if (!mPago || !monto || monto <= 0) return;
-        setPedidos(pedidos.map(p => p.id === mPago
-            ? { ...p, pagos: [...p.pagos, { id: uid(), monto, fecha: today(), nota: rpNota || 'Pago' }] }
-            : p
-        ));
-        notify(`💰 Pago de ${fmt(monto)} registrado`);
-        setRpMonto(''); setRpNota(''); setMPago(null);
+        try {
+            await api.addPagoPedido(mPago, { monto, fecha: today(), nota: rpNota || 'Pago' });
+            notify(`💰 Pago de ${fmt(monto)} registrado`);
+            setRpMonto(''); setRpNota(''); setMPago(null); reload();
+        } catch { notify('❌ Error al registrar pago'); }
     };
 
-    const updateLibroEstado = (pedidoId, libroId, nuevoEstado) => {
-        setPedidos(pedidos.map(p => p.id === pedidoId
-            ? { ...p, libros: p.libros.map(l => l.id === libroId ? { ...l, estado: nuevoEstado } : l) }
-            : p
-        ));
+    const updateLibroEstado = async (pedidoId, libroId, nuevoEstado) => {
+        try {
+            await api.updateLibroEstado(libroId, nuevoEstado);
+            setPedidos(pedidos.map(p => p.id === pedidoId
+                ? { ...p, libros: p.libros.map(l => l.id === libroId ? { ...l, estado: nuevoEstado } : l) }
+                : p
+            ));
+        } catch { notify('❌ Error al cambiar estado'); }
     };
 
-    const ingresarStock = () => {
+    const ingresarStock = async () => {
         if (!isTitulo || !parseInt(isCant)) return;
-        const cantidad = parseInt(isCant);
-        let remaining = cantidad, assigned = 0;
-        const up = pedidos.map(p => {
-            const newLibros = p.libros.map(l => {
-                if (remaining > 0 && l.titulo.toLowerCase() === isTitulo.toLowerCase() && l.estado === 'faltante') {
-                    remaining--; assigned++;
-                    return { ...l, estado: 'en_local' };
-                }
-                return l;
-            });
-            return { ...p, libros: newLibros };
-        });
-        setPedidos(up);
-        if (remaining > 0) {
-            const ei = stock.findIndex(s => s.titulo.toLowerCase() === isTitulo.toLowerCase() && s.tipo === isTipo);
-            if (ei >= 0) setStock(stock.map((s, i) => i === ei ? { ...s, cantidad: s.cantidad + remaining } : s));
-            else setStock([...stock, { id: uid(), titulo: isTitulo, tipo: isTipo, cantidad: remaining }]);
-        }
-        let msg = `📦 ${cantidad} unid. de "${isTitulo}" (${isTipo})`;
-        if (assigned > 0) msg += `\n🔔 ${assigned} asignadas a pedidos pendientes`;
-        if (remaining > 0) msg += `\n📚 ${remaining} quedaron en stock`;
-        notify(msg);
-        setIsTitulo(''); setIsCant('1'); setIsTipo('nuevo'); setMStock(false);
+        try {
+            const res = await api.ingresarStock({ titulo: isTitulo, tipo: isTipo, cantidad: parseInt(isCant) });
+            let msg = `📦 ${parseInt(isCant)} unid. de "${isTitulo}" (${isTipo})`;
+            if (res.asignados_a_pedidos > 0) msg += `\n🔔 ${res.asignados_a_pedidos} asignadas a pedidos pendientes`;
+            if (res.al_stock > 0) msg += `\n📚 ${res.al_stock} quedaron en stock`;
+            notify(msg);
+            setIsTitulo(''); setIsCant('1'); setIsTipo('nuevo'); setMStock(false); reload();
+        } catch { notify('❌ Error al ingresar stock'); }
     };
 
     const handleWhatsApp = (phone, libros) => {
@@ -589,7 +526,7 @@ export default function Encargos() {
                                 </div>
                                 <div className="flex gap-2">
                                     <button onClick={e => { e.stopPropagation(); setEditGradoVal(g.nombre); setEditGradoName(g.id); }} className="p-2 text-gray-400 hover:text-blue-600 transition-colors"><Edit2 size={16} /></button>
-                                    <button onClick={e => { e.stopPropagation(); setConfirm({ msg: `¿Eliminar "${g.nombre}" y todos sus libros?`, fn: () => setGrados(grados.filter(x => x.id !== g.id)) }); }} className="p-2 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
+                                    <button onClick={e => { e.stopPropagation(); setConfirm({ msg: `¿Eliminar "${g.nombre}" y todos sus libros?`, fn: async () => { try { await api.deleteGrado(g.id); reload(); } catch { notify('❌ Error'); } } }); }} className="p-2 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
                                 </div>
                             </div>
                             {isExp && (
@@ -613,7 +550,7 @@ export default function Encargos() {
                                                             <DollarSign size={14} />{fmt(l.precio)}
                                                         </button>
                                                     )}
-                                                    <button onClick={() => setConfirm({ msg: `¿Eliminar "${l.titulo}"?`, fn: () => setGrados(grados.map(x => x.id === g.id ? { ...x, libros: x.libros.filter(b => b.id !== l.id) } : x)) })}
+                                                    <button onClick={() => setConfirm({ msg: `¿Eliminar "${l.titulo}"?`, fn: async () => { try { await api.deleteLibroCatalogo(l.id); reload(); } catch { notify('❌ Error'); } } })}
                                                         className="text-gray-400 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
                                                 </div>
                                             </div>
@@ -655,7 +592,7 @@ export default function Encargos() {
                                 <td className="p-5"><span className={`px-3 py-1 rounded-full text-sm font-bold ${s.tipo === 'nuevo' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>{s.tipo === 'nuevo' ? '📗 Nuevo' : '📙 Usado'}</span></td>
                                 <td className="p-5 text-center"><span className="text-2xl font-black">{s.cantidad}</span></td>
                                 <td className="p-5 text-center">
-                                    <button onClick={() => setStock(stock.map(x => x.id === s.id ? { ...x, cantidad: Math.max(0, x.cantidad - 1) } : x))}
+                                    <button onClick={async () => { const s2 = { ...s, cantidad: Math.max(0, s.cantidad - 1) }; try { await api.updateStock(s.id, { titulo: s2.titulo, tipo: s2.tipo, cantidad: s2.cantidad }); setStock(stock.map(x => x.id === s.id ? s2 : x)); } catch { notify('❌ Error'); } }}
                                         disabled={s.cantidad === 0} className="text-sm px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium disabled:opacity-40 disabled:cursor-not-allowed">-1</button>
                                 </td>
                             </tr>
@@ -804,7 +741,7 @@ export default function Encargos() {
                 <div className="space-y-4">
                     <div><label className="block text-sm font-semibold text-gray-600 mb-1">Nombre del grado</label>
                         <input value={ngNombre} onChange={e => setNgNombre(e.target.value)} placeholder="Ej. 4to Grado" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500" /></div>
-                    <button onClick={() => { if (ngNombre) { setGrados([...grados, { id: uid(), nombre: ngNombre, libros: [] }]); setMGrado(false); } }}
+                    <button onClick={async () => { if (ngNombre) { try { await api.createGrado({ nombre: ngNombre }); setMGrado(false); reload(); } catch { notify('❌ Error'); } } }}
                         disabled={!ngNombre} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all">Crear Grado</button>
                 </div>
             </Modal>
@@ -818,7 +755,7 @@ export default function Encargos() {
                         <input value={alcEdit} onChange={e => setAlcEdit(e.target.value)} placeholder="Opcional" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500" /></div>
                     <div><label className="block text-sm font-semibold text-gray-600 mb-1">Precio</label>
                         <input type="number" value={alcPrecio} onChange={e => setAlcPrecio(e.target.value)} placeholder="0" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500" /></div>
-                    <button onClick={() => { if (alcTitulo) { setGrados(grados.map(g => g.id === mLibroCat ? { ...g, libros: [...g.libros, { id: uid(), titulo: alcTitulo, editorial: alcEdit, precio: parseFloat(alcPrecio) || 0 }] } : g)); setMLibroCat(null); } }}
+                    <button onClick={async () => { if (alcTitulo) { try { await api.addLibroCatalogo(mLibroCat, { titulo: alcTitulo, editorial: alcEdit, precio: parseFloat(alcPrecio) || 0 }); setMLibroCat(null); reload(); } catch { notify('❌ Error'); } } }}
                         disabled={!alcTitulo} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all">Agregar Libro</button>
                 </div>
             </Modal>

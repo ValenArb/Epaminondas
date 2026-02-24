@@ -1,605 +1,639 @@
 import { useState, useMemo } from 'react';
-import { Plus, MessageCircle, Settings, Package, BookOpen, Trash2, ChevronDown, ChevronRight, Edit2, DollarSign } from 'lucide-react';
+import { Plus, MessageCircle, Settings, Package, BookOpen, Trash2, ChevronDown, ChevronRight, Edit2, DollarSign, AlertTriangle, CheckCircle2, Clock, ShoppingCart, X } from 'lucide-react';
+import { Modal, ConfirmDialog, Notification } from './Modal';
 
-// --- MOCK DATA ---
-const MOCK_GRADOS = [
+const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
+const uid = () => Date.now() + Math.random();
+const today = () => new Date().toISOString().split('T')[0];
+
+const INIT_GRADOS = [
     {
-        id: 1, nombre: '1er Grado',
-        libros: [
-            { id: 101, titulo: 'Matemática en Acción 1', isbn: '', editorial: 'Estrada', precio: 8500 },
-            { id: 102, titulo: 'Naturales 1', isbn: '', editorial: 'Santillana', precio: 7200 },
-            { id: 103, titulo: 'Sociales 1', isbn: '', editorial: 'Kapelusz', precio: 7800 },
+        id: 1, nombre: '1er Grado', libros: [
+            { id: 101, titulo: 'Matemática en Acción 1', editorial: 'Estrada', precio: 8500 },
+            { id: 102, titulo: 'Naturales 1', editorial: 'Santillana', precio: 7200 },
+            { id: 103, titulo: 'Sociales 1', editorial: 'Kapelusz', precio: 7800 },
         ]
     },
     {
-        id: 2, nombre: '2do Grado',
-        libros: [
-            { id: 201, titulo: 'Matemática en Acción 2', isbn: '', editorial: 'Estrada', precio: 8500 },
-            { id: 202, titulo: 'Manual Estrada 2', isbn: '', editorial: 'Estrada', precio: 12000 },
+        id: 2, nombre: '2do Grado', libros: [
+            { id: 201, titulo: 'Matemática en Acción 2', editorial: 'Estrada', precio: 8500 },
+            { id: 202, titulo: 'Manual Estrada 2', editorial: 'Estrada', precio: 12000 },
         ]
     },
     {
-        id: 3, nombre: '3er Grado',
-        libros: [
-            { id: 301, titulo: 'Ciencias Naturales 3', isbn: '', editorial: 'Aique', precio: 9500 },
+        id: 3, nombre: '3er Grado', libros: [
+            { id: 301, titulo: 'Ciencias Naturales 3', editorial: 'Aique', precio: 9500 },
         ]
     },
 ];
 
-const MOCK_ENCARGOS = [
-    { id: 1, titulo: 'Matemática en Acción 1', cliente: 'Laura', telefono: '1122334455', precio: 8500, sena: 5000, pagado: 5000, estadoPago: 'parcial', estado: 'faltante', fecha: '2024-02-01' },
-    { id: 2, titulo: 'Manual Estrada 2', cliente: 'Pedro', telefono: '1199887766', precio: 12000, sena: 0, pagado: 0, estadoPago: 'nada', estado: 'en_local', fecha: '2024-02-05' },
-    { id: 3, titulo: 'Matemática en Acción 1', cliente: 'Carlos', telefono: '1155667788', precio: 8500, sena: 2000, pagado: 2000, estadoPago: 'parcial', estado: 'faltante', fecha: '2024-02-10' },
+const INIT_PEDIDOS = [
+    {
+        id: 1, cliente: 'Laura', telefono: '1122334455', fecha: '2024-02-01',
+        libros: [
+            { id: 1, titulo: 'Matemática en Acción 1', precio: 8500, estado: 'faltante' },
+            { id: 2, titulo: 'Naturales 1', precio: 7200, estado: 'en_local' },
+        ],
+        pagos: [{ id: 1, monto: 5000, fecha: '2024-02-01', nota: 'Seña inicial' }]
+    },
+    {
+        id: 2, cliente: 'Pedro', telefono: '1199887766', fecha: '2024-02-05',
+        libros: [{ id: 3, titulo: 'Manual Estrada 2', precio: 12000, estado: 'en_local' }],
+        pagos: []
+    },
+    {
+        id: 3, cliente: 'Carlos', telefono: '1155667788', fecha: '2024-02-10',
+        libros: [
+            { id: 4, titulo: 'Matemática en Acción 1', precio: 8500, estado: 'faltante' },
+            { id: 5, titulo: 'Sociales 1', precio: 7800, estado: 'pedido' },
+            { id: 6, titulo: 'Naturales 1', precio: 7200, estado: 'faltante' },
+        ],
+        pagos: [
+            { id: 2, monto: 2000, fecha: '2024-02-10', nota: 'Seña' },
+            { id: 3, monto: 8000, fecha: '2024-02-15', nota: 'Pago parcial' },
+        ]
+    },
 ];
 
-const MOCK_STOCK = [
+const INIT_STOCK = [
     { id: 1, titulo: 'Naturales 1', tipo: 'nuevo', cantidad: 3 },
     { id: 2, titulo: 'Manual Estrada 2', tipo: 'usado', cantidad: 1 },
 ];
 
-const PAGO_CONFIG = {
-    total: { label: 'Pagó Total', style: 'bg-green-100 text-green-800' },
-    parcial: { label: 'Pagó Parcial', style: 'bg-yellow-100 text-yellow-800' },
-    nada: { label: 'No Pagó', style: 'bg-red-100 text-red-800' },
+const ESTADO_LIBRO = {
+    faltante: { label: 'Falta pedir', cls: 'bg-red-100 text-red-700' },
+    pedido: { label: 'Pedido', cls: 'bg-yellow-100 text-yellow-700' },
+    en_local: { label: 'En local', cls: 'bg-blue-100 text-blue-700' },
+    entregado: { label: 'Entregado', cls: 'bg-green-100 text-green-700' },
 };
 
+function calcPedido(p) {
+    const totalPrecio = p.libros.reduce((s, l) => s + l.precio, 0);
+    const totalPagado = p.pagos.reduce((s, pa) => s + pa.monto, 0);
+    const enLocal = p.libros.filter(l => l.estado === 'en_local');
+    const reservados = p.libros.filter(l => l.estado === 'faltante' || l.estado === 'pedido');
+    const costoRetiro = enLocal.reduce((s, l) => s + l.precio, 0);
+    const costoReserva = reservados.reduce((s, l) => s + l.precio * 0.5, 0);
+    const minRetiro = costoRetiro + costoReserva;
+    return { totalPrecio, totalPagado, deuda: totalPrecio - totalPagado, enLocal: enLocal.length, reservados: reservados.length, entregados: p.libros.filter(l => l.estado === 'entregado').length, costoRetiro, costoReserva, minRetiro, puedeRetirar: totalPagado >= minRetiro, faltaRetiro: Math.max(0, minRetiro - totalPagado) };
+}
+
 export default function Encargos() {
-    const [activeTab, setActiveTab] = useState('pedidos');
-    const [grados, setGrados] = useState(MOCK_GRADOS);
-    const [encargos, setEncargos] = useState(MOCK_ENCARGOS);
-    const [stock, setStock] = useState(MOCK_STOCK);
+    const [tab, setTab] = useState('pedidos');
+    const [grados, setGrados] = useState(INIT_GRADOS);
+    const [pedidos, setPedidos] = useState(INIT_PEDIDOS);
+    const [stock, setStock] = useState(INIT_STOCK);
+    const [expanded, setExpanded] = useState(null);
+    const [notif, setNotif] = useState(null);
 
-    // Modal state for new order
-    const [showNewOrder, setShowNewOrder] = useState(false);
-    const [selectedGrado, setSelectedGrado] = useState(null);
-    const [selectedBooks, setSelectedBooks] = useState([]);
-    const [orderClient, setOrderClient] = useState('');
-    const [orderPhone, setOrderPhone] = useState('');
-    const [orderDeposit, setOrderDeposit] = useState('0');
+    // Modal states
+    const [mNuevo, setMNuevo] = useState(false);
+    const [mAgregar, setMAgregar] = useState(null); // pedidoId
+    const [mPago, setMPago] = useState(null); // pedidoId
+    const [mStock, setMStock] = useState(false);
+    const [mGrado, setMGrado] = useState(false);
+    const [mLibroCat, setMLibroCat] = useState(null); // gradoId
+    const [confirm, setConfirm] = useState(null);
 
-    const [notification, setNotification] = useState(null);
+    // Nuevo Pedido form
+    const [npGrado, setNpGrado] = useState(null);
+    const [npBooks, setNpBooks] = useState([]); // [{titulo,precio}]
+    const [npClient, setNpClient] = useState('');
+    const [npPhone, setNpPhone] = useState('');
+    const [npSena, setNpSena] = useState('');
+    const [npManual, setNpManual] = useState({ titulo: '', precio: '' });
 
-    const formatMoney = (amount) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amount);
+    // Agregar Libros form
+    const [alGrado, setAlGrado] = useState(null);
+    const [alBooks, setAlBooks] = useState([]);
+    const [alManual, setAlManual] = useState({ titulo: '', precio: '' });
 
-    const showNotification = (msg) => {
-        setNotification(msg);
-        setTimeout(() => setNotification(null), 4000);
-    };
+    // Registrar Pago form
+    const [rpMonto, setRpMonto] = useState('');
+    const [rpNota, setRpNota] = useState('');
 
-    // Helper: get price for a book title from catalog
-    const getPriceForTitle = (titulo) => {
-        for (const g of grados) {
-            const libro = g.libros.find(l => l.titulo === titulo);
-            if (libro) return libro.precio;
-        }
+    // Ingreso Stock form
+    const [isTitulo, setIsTitulo] = useState('');
+    const [isCant, setIsCant] = useState('1');
+    const [isTipo, setIsTipo] = useState('nuevo');
+
+    // Catalogo forms
+    const [ngNombre, setNgNombre] = useState('');
+    const [alcTitulo, setAlcTitulo] = useState('');
+    const [alcEdit, setAlcEdit] = useState('');
+    const [alcPrecio, setAlcPrecio] = useState('');
+    const [editPrice, setEditPrice] = useState(null);
+    const [editPriceVal, setEditPriceVal] = useState('');
+    const [editGradoName, setEditGradoName] = useState(null);
+    const [editGradoVal, setEditGradoVal] = useState('');
+    const [expandedGrado, setExpandedGrado] = useState(null);
+
+    const notify = (m) => { setNotif(m); setTimeout(() => setNotif(null), 5000); };
+
+    // Dashboard counts
+    const dash = useMemo(() => {
+        let faltante = 0, pedido = 0, enLocal = 0;
+        pedidos.forEach(p => p.libros.forEach(l => {
+            if (l.estado === 'faltante') faltante++;
+            if (l.estado === 'pedido') pedido++;
+            if (l.estado === 'en_local') enLocal++;
+        }));
+        return { faltante, pedido, enLocal };
+    }, [pedidos]);
+
+    const getPrecio = (titulo) => {
+        for (const g of grados) { const l = g.libros.find(b => b.titulo === titulo); if (l) return l.precio; }
         return 0;
     };
 
-    const handleWhatsApp = (phone, title) => {
-        const cleanPhone = phone.replace(/\D/g, '');
-        const msg = encodeURIComponent(`¡Hola! Te aviso de la librería que ya llegó el libro que encargaste: "${title}". Podés pasar a retirarlo cuando quieras.`);
-        window.open(`https://wa.me/549${cleanPhone}?text=${msg}`, '_blank');
+    // Reset helpers
+    const resetNuevo = () => { setNpGrado(null); setNpBooks([]); setNpClient(''); setNpPhone(''); setNpSena(''); setNpManual({ titulo: '', precio: '' }); };
+    const resetAgregar = () => { setAlGrado(null); setAlBooks([]); setAlManual({ titulo: '', precio: '' }); };
+
+    // === HANDLERS ===
+    const crearPedido = () => {
+        if (!npClient || npBooks.length === 0) return;
+        const sena = parseFloat(npSena) || 0;
+        const p = {
+            id: uid(), cliente: npClient, telefono: npPhone, fecha: today(),
+            libros: npBooks.map(b => ({ id: uid(), titulo: b.titulo, precio: b.precio, estado: 'faltante' })),
+            pagos: sena > 0 ? [{ id: uid(), monto: sena, fecha: today(), nota: 'Seña inicial' }] : []
+        };
+        setPedidos([...pedidos, p]);
+        notify(`✅ Pedido creado para ${npClient} — ${npBooks.length} libro(s)`);
+        resetNuevo(); setMNuevo(false);
     };
 
-    const updateOrderStatus = (id, newStatus) => {
-        setEncargos(encargos.map(b => b.id === id ? { ...b, estado: newStatus } : b));
+    const agregarLibros = () => {
+        if (!mAgregar || alBooks.length === 0) return;
+        setPedidos(pedidos.map(p => p.id === mAgregar
+            ? { ...p, libros: [...p.libros, ...alBooks.map(b => ({ id: uid(), titulo: b.titulo, precio: b.precio, estado: 'faltante' }))] }
+            : p
+        ));
+        const ped = pedidos.find(p => p.id === mAgregar);
+        notify(`✅ ${alBooks.length} libro(s) agregados al pedido de ${ped?.cliente}`);
+        resetAgregar(); setMAgregar(null);
     };
 
-    const updatePaymentStatus = (id, newPago) => {
-        setEncargos(encargos.map(order => {
-            if (order.id !== id) return order;
-            if (newPago === 'total') {
-                return { ...order, estadoPago: 'total', pagado: order.precio };
-            } else if (newPago === 'nada') {
-                return { ...order, estadoPago: 'nada', pagado: 0 };
-            } else {
-                // Partial: ask amount
-                const montoStr = prompt(`Monto pagado parcialmente (de ${formatMoney(order.precio)}):`, String(order.pagado));
-                if (!montoStr || isNaN(montoStr)) return order;
-                const monto = parseFloat(montoStr);
-                return { ...order, estadoPago: 'parcial', pagado: monto };
-            }
-        }));
+    const registrarPago = () => {
+        const monto = parseFloat(rpMonto);
+        if (!mPago || !monto || monto <= 0) return;
+        setPedidos(pedidos.map(p => p.id === mPago
+            ? { ...p, pagos: [...p.pagos, { id: uid(), monto, fecha: today(), nota: rpNota || 'Pago' }] }
+            : p
+        ));
+        notify(`💰 Pago de ${fmt(monto)} registrado`);
+        setRpMonto(''); setRpNota(''); setMPago(null);
     };
 
-    const statusConfig = {
-        faltante: { label: 'Falta pedir', style: 'bg-red-100 text-red-800 font-bold' },
-        pedido: { label: 'Pedido (Espera)', style: 'bg-yellow-100 text-yellow-800 font-bold' },
-        en_local: { label: 'En local (Avisar)', style: 'bg-blue-100 text-blue-800 font-bold border border-blue-200' },
-        entregado: { label: 'Entregado', style: 'bg-gray-100 text-gray-600 font-medium' }
+    const updateLibroEstado = (pedidoId, libroId, nuevoEstado) => {
+        setPedidos(pedidos.map(p => p.id === pedidoId
+            ? { ...p, libros: p.libros.map(l => l.id === libroId ? { ...l, estado: nuevoEstado } : l) }
+            : p
+        ));
     };
 
-    // ==========================================
-    // NEW ORDER WITH GRADE SELECTOR
-    // ==========================================
-    const handleCreateOrders = () => {
-        if (!orderClient || selectedBooks.length === 0) {
-            alert('Completá el nombre del cliente y seleccioná al menos un libro.');
-            return;
-        }
-        const sena = parseFloat(orderDeposit) || 0;
-        const newOrders = selectedBooks.map(titulo => {
-            const precio = getPriceForTitle(titulo);
-            return {
-                id: Date.now() + Math.random(),
-                titulo,
-                cliente: orderClient,
-                telefono: orderPhone,
-                precio,
-                sena,
-                pagado: sena,
-                estadoPago: sena >= precio ? 'total' : sena > 0 ? 'parcial' : 'nada',
-                estado: 'faltante',
-                fecha: new Date().toISOString().split('T')[0]
-            };
+    const ingresarStock = () => {
+        if (!isTitulo || !parseInt(isCant)) return;
+        const cantidad = parseInt(isCant);
+        let remaining = cantidad, assigned = 0;
+        const up = pedidos.map(p => {
+            const newLibros = p.libros.map(l => {
+                if (remaining > 0 && l.titulo.toLowerCase() === isTitulo.toLowerCase() && l.estado === 'faltante') {
+                    remaining--; assigned++;
+                    return { ...l, estado: 'en_local' };
+                }
+                return l;
+            });
+            return { ...p, libros: newLibros };
         });
-        setEncargos([...encargos, ...newOrders]);
-        showNotification(`✅ Se crearon ${newOrders.length} encargo(s) para ${orderClient}`);
-        setShowNewOrder(false);
-        setSelectedGrado(null);
-        setSelectedBooks([]);
-        setOrderClient('');
-        setOrderPhone('');
-        setOrderDeposit('0');
-    };
-
-    const handleManualOrder = () => {
-        const titulo = prompt("Título o ISBN del libro:");
-        if (!titulo) return;
-        const cliente = prompt("Nombre de quien encarga:");
-        if (!cliente) return;
-        const telefono = prompt("Teléfono (Para avisarle por WhatsApp):");
-        const precioStr = prompt("Precio del libro:", "0");
-        const precio = parseFloat(precioStr) || 0;
-        const deposit = prompt("¿Dejó seña? (Ingresar monto, o 0 si no dejó):", "0");
-        const sena = parseFloat(deposit) || 0;
-        setEncargos([...encargos, {
-            id: Date.now(), titulo, cliente, telefono: telefono || '', precio, sena, pagado: sena,
-            estadoPago: sena >= precio && precio > 0 ? 'total' : sena > 0 ? 'parcial' : 'nada',
-            estado: 'faltante', fecha: new Date().toISOString().split('T')[0]
-        }]);
-    };
-
-    // ==========================================
-    // STOCK INTAKE WITH AUTO-ASSIGNMENT
-    // ==========================================
-    const handleIngresoStock = () => {
-        const titulo = prompt("Título del libro que llegó:");
-        if (!titulo) return;
-        const cantidadStr = prompt("¿Cuántas unidades llegaron?", "1");
-        const cantidad = parseInt(cantidadStr);
-        if (isNaN(cantidad) || cantidad <= 0) return;
-        const tipo = prompt("¿Tipo? Escribí 'nuevo' o 'usado':", "nuevo").toLowerCase();
-        if (tipo !== 'nuevo' && tipo !== 'usado') {
-            alert("Tipo inválido. Usá 'nuevo' o 'usado'.");
-            return;
-        }
-
-        let remaining = cantidad;
-        let assigned = 0;
-        const updatedEncargos = [...encargos];
-
-        const pendingIndexes = updatedEncargos
-            .map((e, i) => ({ ...e, _idx: i }))
-            .filter(e => e.titulo.toLowerCase() === titulo.toLowerCase() && e.estado === 'faltante')
-            .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
-
-        for (const pending of pendingIndexes) {
-            if (remaining <= 0) break;
-            updatedEncargos[pending._idx] = { ...updatedEncargos[pending._idx], estado: 'en_local' };
-            remaining--;
-            assigned++;
-        }
-
-        setEncargos(updatedEncargos);
-
+        setPedidos(up);
         if (remaining > 0) {
-            const existingIdx = stock.findIndex(s => s.titulo.toLowerCase() === titulo.toLowerCase() && s.tipo === tipo);
-            if (existingIdx >= 0) {
-                const updatedStock = [...stock];
-                updatedStock[existingIdx] = { ...updatedStock[existingIdx], cantidad: updatedStock[existingIdx].cantidad + remaining };
-                setStock(updatedStock);
-            } else {
-                setStock([...stock, { id: Date.now(), titulo, tipo, cantidad: remaining }]);
-            }
+            const ei = stock.findIndex(s => s.titulo.toLowerCase() === isTitulo.toLowerCase() && s.tipo === isTipo);
+            if (ei >= 0) setStock(stock.map((s, i) => i === ei ? { ...s, cantidad: s.cantidad + remaining } : s));
+            else setStock([...stock, { id: uid(), titulo: isTitulo, tipo: isTipo, cantidad: remaining }]);
         }
-
-        let msg = `📦 Ingresadas ${cantidad} unidades de "${titulo}" (${tipo}).`;
-        if (assigned > 0) msg += `\n🔔 Se asignaron automáticamente ${assigned} a pedidos pendientes.`;
-        if (remaining > 0) msg += `\n📚 ${remaining} quedaron en stock.`;
-        showNotification(msg);
+        let msg = `📦 ${cantidad} unid. de "${isTitulo}" (${isTipo})`;
+        if (assigned > 0) msg += `\n🔔 ${assigned} asignadas a pedidos pendientes`;
+        if (remaining > 0) msg += `\n📚 ${remaining} quedaron en stock`;
+        notify(msg);
+        setIsTitulo(''); setIsCant('1'); setIsTipo('nuevo'); setMStock(false);
     };
 
-    // ==========================================
-    // TAB: PEDIDOS
-    // ==========================================
-    const selectedGradoData = grados.find(g => g.id === selectedGrado);
-    const selectedBooksTotal = useMemo(() => {
-        return selectedBooks.reduce((sum, titulo) => sum + getPriceForTitle(titulo), 0);
-    }, [selectedBooks, grados]);
+    const handleWhatsApp = (phone, libros) => {
+        const clean = phone.replace(/\D/g, '');
+        const titles = libros.filter(l => l.estado === 'en_local').map(l => `"${l.titulo}"`).join(', ');
+        const msg = encodeURIComponent(`¡Hola! Te aviso de la librería que ya llegaron: ${titles}. Podés pasar a retirar.`);
+        window.open(`https://wa.me/549${clean}?text=${msg}`, '_blank');
+    };
 
+    // === TAB: PEDIDOS ===
     const PedidosTab = () => (
         <div>
-            <div className="flex justify-between items-center mb-6">
-                <div className="flex gap-3">
-                    <button onClick={() => setShowNewOrder(true)} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all">
-                        <Plus size={20} /> Nuevo Encargo (por Grado)
-                    </button>
-                    <button onClick={handleManualOrder} className="flex items-center gap-2 px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium shadow-sm transition-all">
-                        <Edit2 size={18} /> Encargo Manual
-                    </button>
-                </div>
-            </div>
-
-            {/* MODAL: New Order by Grade */}
-            {showNewOrder && (
-                <div className="mb-8 bg-white rounded-2xl shadow-lg border-2 border-blue-200 p-6">
-                    <div className="flex justify-between items-center mb-5">
-                        <h3 className="text-xl font-bold text-gray-800">Nuevo Encargo por Grado</h3>
-                        <button onClick={() => setShowNewOrder(false)} className="text-gray-400 hover:text-gray-600 text-2xl font-bold">×</button>
+            {/* Dashboard */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
+                {[
+                    { label: 'Faltan Pedir', count: dash.faltante, cls: 'bg-red-50 border-red-200 text-red-700', icon: '🔴' },
+                    { label: 'Pedidos (esperan)', count: dash.pedido, cls: 'bg-yellow-50 border-yellow-200 text-yellow-700', icon: '🟡' },
+                    { label: 'En Local (avisar)', count: dash.enLocal, cls: 'bg-blue-50 border-blue-200 text-blue-700', icon: '🔵' },
+                ].map(c => (
+                    <div key={c.label} className={`${c.cls} border rounded-xl p-4 flex items-center gap-3`}>
+                        <span className="text-2xl">{c.icon}</span>
+                        <div><p className="text-3xl font-black">{c.count}</p><p className="text-sm font-medium">{c.label}</p></div>
                     </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Left: Grade & Book Selection */}
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-600 mb-2">Seleccionar Grado</label>
-                            <select value={selectedGrado || ''} onChange={(e) => { setSelectedGrado(Number(e.target.value) || null); setSelectedBooks([]); }}
-                                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none">
-                                <option value="">-- Elegir grado --</option>
-                                {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
-                            </select>
-
-                            {selectedGrado && selectedGradoData && (
-                                <div className="mt-4 space-y-2">
-                                    <p className="text-sm font-semibold text-gray-600 mb-2">Libros disponibles:</p>
-                                    {selectedGradoData.libros.map(libro => (
-                                        <label key={libro.id} className={`flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedBooks.includes(libro.titulo) ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
-                                            <div className="flex items-center gap-3">
-                                                <input type="checkbox" checked={selectedBooks.includes(libro.titulo)}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) setSelectedBooks([...selectedBooks, libro.titulo]);
-                                                        else setSelectedBooks(selectedBooks.filter(t => t !== libro.titulo));
-                                                    }}
-                                                    className="w-5 h-5 rounded text-blue-600" />
-                                                <div>
-                                                    <span className="font-medium text-gray-800">{libro.titulo}</span>
-                                                    {libro.editorial && <span className="text-sm text-gray-500 ml-2">({libro.editorial})</span>}
-                                                </div>
-                                            </div>
-                                            <span className="font-bold text-green-600 text-sm whitespace-nowrap">{formatMoney(libro.precio)}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Right: Client Info */}
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-600 mb-2">Nombre del cliente *</label>
-                                <input type="text" value={orderClient} onChange={e => setOrderClient(e.target.value)} placeholder="Ej. María (mamá de Juan)"
-                                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-600 mb-2">Teléfono (WhatsApp)</label>
-                                <input type="text" value={orderPhone} onChange={e => setOrderPhone(e.target.value)} placeholder="1123456789"
-                                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-600 mb-2">Seña / Adelanto ($)</label>
-                                <input type="number" value={orderDeposit} onChange={e => setOrderDeposit(e.target.value)} placeholder="0"
-                                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none" />
-                            </div>
-
-                            {selectedBooks.length > 0 && (
-                                <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
-                                    <p className="text-sm font-bold text-blue-800 mb-2">Resumen ({selectedBooks.length} libros):</p>
-                                    <ul className="text-sm text-blue-700 space-y-1">
-                                        {selectedBooks.map((t, i) => <li key={i} className="flex justify-between">
-                                            <span>• {t}</span>
-                                            <span className="font-bold">{formatMoney(getPriceForTitle(t))}</span>
-                                        </li>)}
-                                    </ul>
-                                    <div className="border-t border-blue-200 mt-3 pt-3 flex justify-between font-bold text-blue-900">
-                                        <span>Total:</span>
-                                        <span className="text-lg">{formatMoney(selectedBooksTotal)}</span>
-                                    </div>
-                                </div>
-                            )}
-
-                            <button onClick={handleCreateOrders}
-                                disabled={!orderClient || selectedBooks.length === 0}
-                                className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all shadow-sm">
-                                Crear {selectedBooks.length} Encargo(s)
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Orders Table */}
-            <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b">
-                        <tr>
-                            <th className="p-4 font-semibold text-gray-600">Libro / Material</th>
-                            <th className="p-4 font-semibold text-gray-600">Cliente</th>
-                            <th className="p-4 font-semibold text-gray-600 text-right">Precio</th>
-                            <th className="p-4 font-semibold text-gray-600">Pago</th>
-                            <th className="p-4 font-semibold text-gray-600">Estado</th>
-                            <th className="p-4 font-semibold text-center text-gray-600">Avisar</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {encargos.map(order => (
-                            <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="p-4">
-                                    <p className="font-bold text-gray-800">{order.titulo}</p>
-                                    <p className="text-xs text-gray-400 mt-1">{order.fecha}</p>
-                                </td>
-                                <td className="p-4">
-                                    <p className="font-bold text-gray-800">{order.cliente}</p>
-                                    <p className="text-xs text-gray-500 font-mono mt-1 flex items-center gap-1">
-                                        <MessageCircle size={11} /> {order.telefono}
-                                    </p>
-                                </td>
-                                <td className="p-4 text-right">
-                                    <span className="font-bold text-lg text-green-600">{formatMoney(order.precio)}</span>
-                                    {order.pagado > 0 && order.estadoPago !== 'total' && (
-                                        <p className="text-xs text-gray-500 mt-1">Pagó: {formatMoney(order.pagado)}</p>
-                                    )}
-                                    {order.estadoPago !== 'total' && order.precio > 0 && (
-                                        <p className="text-xs text-red-500 font-medium mt-0.5">Debe: {formatMoney(order.precio - order.pagado)}</p>
-                                    )}
-                                </td>
-                                <td className="p-4">
-                                    <select value={order.estadoPago} onChange={(e) => updatePaymentStatus(order.id, e.target.value)}
-                                        className={`text-sm rounded-xl px-3 py-2 cursor-pointer outline-none focus:ring-2 focus:ring-blue-500 appearance-none font-bold ${PAGO_CONFIG[order.estadoPago].style}`}>
-                                        {Object.entries(PAGO_CONFIG).map(([key, cfg]) => (
-                                            <option key={key} value={key} className="bg-white text-gray-800 font-medium">{cfg.label}</option>
-                                        ))}
-                                    </select>
-                                </td>
-                                <td className="p-4">
-                                    <select value={order.estado} onChange={(e) => updateOrderStatus(order.id, e.target.value)}
-                                        className={`text-sm rounded-xl px-3 py-2 cursor-pointer outline-none focus:ring-2 focus:ring-blue-500 appearance-none ${statusConfig[order.estado].style}`}>
-                                        {Object.keys(statusConfig).map(key => (
-                                            <option key={key} value={key} className="bg-white text-gray-800 font-medium">{statusConfig[key].label}</option>
-                                        ))}
-                                    </select>
-                                </td>
-                                <td className="p-4 text-center">
-                                    {order.estado === 'en_local' ? (
-                                        <button onClick={() => handleWhatsApp(order.telefono, order.titulo)}
-                                            className="flex items-center gap-2 mx-auto px-3 py-2 bg-[#25D366] text-white rounded-xl hover:bg-[#128C7E] shadow-sm transition-all font-bold text-sm">
-                                            <MessageCircle size={16} /> Avisar
-                                        </button>
-                                    ) : (<span className="text-gray-300">-</span>)}
-                                </td>
-                            </tr>
-                        ))}
-                        {encargos.length === 0 && (
-                            <tr><td colSpan="6" className="p-12 text-center text-gray-400 text-lg">No hay encargos registrados.</td></tr>
-                        )}
-                    </tbody>
-                </table>
+                ))}
             </div>
-        </div>
-    );
 
-    // ==========================================
-    // TAB: CATÁLOGO POR GRADO
-    // ==========================================
-    const CatalogoTab = () => {
-        const [expandedGrado, setExpandedGrado] = useState(null);
-
-        const handleAddGrado = () => {
-            const nombre = prompt("Nombre del nuevo grado (ej. '4to Grado', 'Sala de 5'):");
-            if (!nombre) return;
-            setGrados([...grados, { id: Date.now(), nombre, libros: [] }]);
-        };
-
-        const handleDeleteGrado = (id) => {
-            if (!confirm('¿Eliminar este grado y todos sus libros?')) return;
-            setGrados(grados.filter(g => g.id !== id));
-        };
-
-        const handleRenameGrado = (id) => {
-            const grado = grados.find(g => g.id === id);
-            const nombre = prompt("Nuevo nombre:", grado.nombre);
-            if (!nombre) return;
-            setGrados(grados.map(g => g.id === id ? { ...g, nombre } : g));
-        };
-
-        const handleAddLibro = (gradoId) => {
-            const titulo = prompt("Título del libro:");
-            if (!titulo) return;
-            const editorial = prompt("Editorial (opcional):", "") || '';
-            const precioStr = prompt("Precio del libro:", "0");
-            const precio = parseFloat(precioStr) || 0;
-            setGrados(grados.map(g => g.id === gradoId
-                ? { ...g, libros: [...g.libros, { id: Date.now(), titulo, isbn: '', editorial, precio }] }
-                : g
-            ));
-        };
-
-        const handleEditPrecio = (gradoId, libroId) => {
-            const grado = grados.find(g => g.id === gradoId);
-            const libro = grado.libros.find(l => l.id === libroId);
-            const precioStr = prompt(`Nuevo precio para "${libro.titulo}":`, String(libro.precio));
-            if (!precioStr || isNaN(precioStr)) return;
-            setGrados(grados.map(g => g.id === gradoId
-                ? { ...g, libros: g.libros.map(l => l.id === libroId ? { ...l, precio: parseFloat(precioStr) } : l) }
-                : g
-            ));
-        };
-
-        const handleDeleteLibro = (gradoId, libroId) => {
-            setGrados(grados.map(g => g.id === gradoId
-                ? { ...g, libros: g.libros.filter(l => l.id !== libroId) }
-                : g
-            ));
-        };
-
-        return (
-            <div>
-                <div className="flex justify-between items-center mb-6">
-                    <p className="text-gray-500">Configurá los libros por grado con sus precios. Se usan en el selector de "Nuevo Encargo".</p>
-                    <button onClick={handleAddGrado} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all">
-                        <Plus size={20} /> Nuevo Grado
-                    </button>
-                </div>
-
-                <div className="space-y-4">
-                    {grados.map(grado => {
-                        const totalGrado = grado.libros.reduce((s, l) => s + l.precio, 0);
-                        return (
-                            <div key={grado.id} className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-                                <div className="flex justify-between items-center p-5 cursor-pointer hover:bg-gray-50 transition-colors"
-                                    onClick={() => setExpandedGrado(expandedGrado === grado.id ? null : grado.id)}>
-                                    <div className="flex items-center gap-3">
-                                        {expandedGrado === grado.id ? <ChevronDown size={20} className="text-gray-400" /> : <ChevronRight size={20} className="text-gray-400" />}
-                                        <h3 className="text-xl font-bold text-gray-800">{grado.nombre}</h3>
-                                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">{grado.libros.length} libros</span>
-                                        {totalGrado > 0 && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold">{formatMoney(totalGrado)}</span>}
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={(e) => { e.stopPropagation(); handleRenameGrado(grado.id); }}
-                                            className="p-2 text-gray-400 hover:text-blue-600 transition-colors"><Edit2 size={16} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteGrado(grado.id); }}
-                                            className="p-2 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
-                                    </div>
-                                </div>
-
-                                {expandedGrado === grado.id && (
-                                    <div className="border-t bg-gray-50/50 p-5">
-                                        <div className="space-y-2 mb-4">
-                                            {grado.libros.map(libro => (
-                                                <div key={libro.id} className="flex justify-between items-center bg-white px-4 py-3 rounded-xl border">
-                                                    <div className="flex-1">
-                                                        <span className="font-medium text-gray-800">{libro.titulo}</span>
-                                                        {libro.editorial && <span className="text-sm text-gray-500 ml-2">— {libro.editorial}</span>}
-                                                    </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <button onClick={() => handleEditPrecio(grado.id, libro.id)}
-                                                            className="font-bold text-green-600 hover:text-green-800 transition-colors flex items-center gap-1">
-                                                            <DollarSign size={14} /> {formatMoney(libro.precio)}
-                                                        </button>
-                                                        <button onClick={() => handleDeleteLibro(grado.id, libro.id)}
-                                                            className="text-gray-400 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            {grado.libros.length === 0 && (
-                                                <p className="text-gray-400 text-center py-4">No hay libros asignados a este grado.</p>
-                                            )}
-                                        </div>
-                                        <button onClick={() => handleAddLibro(grado.id)}
-                                            className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium transition-colors text-sm">
-                                            <Plus size={16} /> Agregar Libro
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-
-                    {grados.length === 0 && (
-                        <div className="text-center py-12 text-gray-400 text-lg">No hay grados configurados. Creá uno para empezar.</div>
-                    )}
-                </div>
-            </div>
-        );
-    };
-
-    // ==========================================
-    // TAB: STOCK DE LIBROS
-    // ==========================================
-    const StockTab = () => (
-        <div>
-            <div className="flex justify-between items-center mb-6">
-                <p className="text-gray-500">Libros disponibles en el local. Al ingresar stock, se asignan automáticamente a pedidos pendientes.</p>
-                <button onClick={handleIngresoStock} className="flex items-center gap-2 px-5 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium shadow-sm transition-all">
-                    <Package size={20} /> Ingresar Libros
+            <div className="flex gap-3 mb-6">
+                <button onClick={() => { resetNuevo(); setMNuevo(true); }} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all">
+                    <Plus size={20} /> Nuevo Pedido
+                </button>
+                <button onClick={() => setMStock(true)} className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium shadow-sm transition-all">
+                    <Package size={18} /> Ingresar Libros
                 </button>
             </div>
 
+            {/* Orders Table */}
+            <div className="space-y-3">
+                {pedidos.map(p => {
+                    const c = calcPedido(p);
+                    const isExp = expanded === p.id;
+                    return (
+                        <div key={p.id} className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+                            <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setExpanded(isExp ? null : p.id)}>
+                                {isExp ? <ChevronDown size={18} className="text-gray-400 shrink-0" /> : <ChevronRight size={18} className="text-gray-400 shrink-0" />}
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-gray-800 text-lg">{p.cliente}</p>
+                                    <p className="text-xs text-gray-400 flex items-center gap-2"><MessageCircle size={11} /> {p.telefono} · {p.fecha}</p>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap justify-end">
+                                    {p.libros.map(l => (
+                                        <span key={l.id} className={`text-xs px-2 py-0.5 rounded-full font-bold ${ESTADO_LIBRO[l.estado].cls}`}>
+                                            {l.titulo.length > 20 ? l.titulo.slice(0, 18) + '…' : l.titulo}
+                                        </span>
+                                    ))}
+                                </div>
+                                <div className="text-right shrink-0 ml-3">
+                                    <p className="font-bold text-green-600">{fmt(c.totalPrecio)}</p>
+                                    {c.deuda > 0 ? <p className="text-xs text-red-500 font-bold">Debe: {fmt(c.deuda)}</p> : <p className="text-xs text-green-600 font-bold">✓ Pago completo</p>}
+                                </div>
+                            </div>
+
+                            {isExp && (
+                                <div className="border-t bg-gray-50/50 p-5">
+                                    {/* Libros */}
+                                    <p className="text-sm font-bold text-gray-600 mb-3">Libros del pedido:</p>
+                                    <div className="space-y-2 mb-5">
+                                        {p.libros.map(l => (
+                                            <div key={l.id} className="flex items-center justify-between bg-white px-4 py-3 rounded-xl border">
+                                                <div>
+                                                    <span className="font-medium text-gray-800">{l.titulo}</span>
+                                                    <span className="ml-2 text-green-600 font-bold text-sm">{fmt(l.precio)}</span>
+                                                </div>
+                                                <select value={l.estado} onChange={(e) => updateLibroEstado(p.id, l.id, e.target.value)}
+                                                    className={`text-xs rounded-lg px-3 py-1.5 font-bold cursor-pointer outline-none ${ESTADO_LIBRO[l.estado].cls}`}>
+                                                    {Object.entries(ESTADO_LIBRO).map(([k, v]) => <option key={k} value={k} className="bg-white text-gray-800">{v.label}</option>)}
+                                                </select>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Retiro info */}
+                                    {c.enLocal > 0 && (
+                                        <div className={`p-4 rounded-xl mb-5 border ${c.puedeRetirar ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                                            <p className="font-bold text-sm mb-1">{c.puedeRetirar ? '✅ Puede retirar' : '⚠️ No puede retirar aún'}</p>
+                                            <p className="text-xs text-gray-600">
+                                                {c.enLocal} libro(s) listos ({fmt(c.costoRetiro)}) + {c.reservados} reserv. al 50% ({fmt(c.costoReserva)}) = Mínimo {fmt(c.minRetiro)}
+                                            </p>
+                                            <p className="text-xs text-gray-600">Pagado: {fmt(c.totalPagado)}{!c.puedeRetirar && ` — Falta: ${fmt(c.faltaRetiro)}`}</p>
+                                        </div>
+                                    )}
+
+                                    {/* Pagos */}
+                                    <p className="text-sm font-bold text-gray-600 mb-2">Historial de pagos:</p>
+                                    {p.pagos.length > 0 ? (
+                                        <div className="space-y-1 mb-4">
+                                            {p.pagos.map(pa => (
+                                                <div key={pa.id} className="flex justify-between text-sm bg-white px-3 py-2 rounded-lg border">
+                                                    <span className="text-gray-700">{pa.nota} — {pa.fecha}</span>
+                                                    <span className="font-bold text-green-600">{fmt(pa.monto)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : <p className="text-sm text-gray-400 mb-4 italic">Sin pagos registrados</p>}
+
+                                    {/* Actions */}
+                                    <div className="flex gap-2 flex-wrap pt-3 border-t">
+                                        <button onClick={() => { resetAgregar(); setMAgregar(p.id); }}
+                                            className="flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium text-sm transition-colors">
+                                            <Plus size={14} /> Agregar Libros
+                                        </button>
+                                        <button onClick={() => { setRpMonto(''); setRpNota(''); setMPago(p.id); }}
+                                            className="flex items-center gap-1.5 px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 font-medium text-sm transition-colors">
+                                            <DollarSign size={14} /> Registrar Pago
+                                        </button>
+                                        {c.enLocal > 0 && (
+                                            <button onClick={() => handleWhatsApp(p.telefono, p.libros)}
+                                                className="flex items-center gap-1.5 px-4 py-2 bg-[#25D366]/10 text-[#128C7E] rounded-lg hover:bg-[#25D366]/20 font-medium text-sm transition-colors">
+                                                <MessageCircle size={14} /> Avisar por WhatsApp
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+                {pedidos.length === 0 && <p className="text-center py-12 text-gray-400 text-lg">No hay pedidos. Creá uno con el botón de arriba.</p>}
+            </div>
+        </div>
+    );
+
+    // === TAB: CATÁLOGO ===
+    const CatalogoTab = () => (
+        <div>
+            <div className="flex justify-between items-center mb-6">
+                <p className="text-gray-500">Configurá los libros por grado con sus precios.</p>
+                <button onClick={() => { setNgNombre(''); setMGrado(true); }} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all">
+                    <Plus size={20} /> Nuevo Grado
+                </button>
+            </div>
+            <div className="space-y-4">
+                {grados.map(g => {
+                    const total = g.libros.reduce((s, l) => s + l.precio, 0);
+                    const isExp = expandedGrado === g.id;
+                    return (
+                        <div key={g.id} className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+                            <div className="flex justify-between items-center p-5 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setExpandedGrado(isExp ? null : g.id)}>
+                                <div className="flex items-center gap-3">
+                                    {isExp ? <ChevronDown size={18} className="text-gray-400" /> : <ChevronRight size={18} className="text-gray-400" />}
+                                    {editGradoName === g.id ? (
+                                        <input autoFocus value={editGradoVal} onChange={e => setEditGradoVal(e.target.value)}
+                                            onBlur={() => { setGrados(grados.map(x => x.id === g.id ? { ...x, nombre: editGradoVal } : x)); setEditGradoName(null); }}
+                                            onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditGradoName(null); }}
+                                            onClick={e => e.stopPropagation()}
+                                            className="text-xl font-bold text-gray-800 border-b-2 border-blue-500 outline-none bg-transparent px-1" />
+                                    ) : <h3 className="text-xl font-bold text-gray-800">{g.nombre}</h3>}
+                                    <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">{g.libros.length} libros</span>
+                                    {total > 0 && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold">{fmt(total)}</span>}
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={e => { e.stopPropagation(); setEditGradoVal(g.nombre); setEditGradoName(g.id); }} className="p-2 text-gray-400 hover:text-blue-600 transition-colors"><Edit2 size={16} /></button>
+                                    <button onClick={e => { e.stopPropagation(); setConfirm({ msg: `¿Eliminar "${g.nombre}" y todos sus libros?`, fn: () => setGrados(grados.filter(x => x.id !== g.id)) }); }} className="p-2 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
+                                </div>
+                            </div>
+                            {isExp && (
+                                <div className="border-t bg-gray-50/50 p-5">
+                                    <div className="space-y-2 mb-4">
+                                        {g.libros.map(l => (
+                                            <div key={l.id} className="flex justify-between items-center bg-white px-4 py-3 rounded-xl border">
+                                                <div className="flex-1">
+                                                    <span className="font-medium text-gray-800">{l.titulo}</span>
+                                                    {l.editorial && <span className="text-sm text-gray-500 ml-2">— {l.editorial}</span>}
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    {editPrice?.gradoId === g.id && editPrice?.libroId === l.id ? (
+                                                        <input autoFocus type="number" value={editPriceVal} onChange={e => setEditPriceVal(e.target.value)}
+                                                            onBlur={() => { setGrados(grados.map(x => x.id === g.id ? { ...x, libros: x.libros.map(b => b.id === l.id ? { ...b, precio: parseFloat(editPriceVal) || 0 } : b) } : x)); setEditPrice(null); }}
+                                                            onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditPrice(null); }}
+                                                            className="w-28 px-2 py-1 border-2 border-blue-400 rounded-lg text-right font-bold outline-none" />
+                                                    ) : (
+                                                        <button onClick={() => { setEditPrice({ gradoId: g.id, libroId: l.id }); setEditPriceVal(String(l.precio)); }}
+                                                            className="font-bold text-green-600 hover:text-green-800 transition-colors flex items-center gap-1">
+                                                            <DollarSign size={14} />{fmt(l.precio)}
+                                                        </button>
+                                                    )}
+                                                    <button onClick={() => setConfirm({ msg: `¿Eliminar "${l.titulo}"?`, fn: () => setGrados(grados.map(x => x.id === g.id ? { ...x, libros: x.libros.filter(b => b.id !== l.id) } : x)) })}
+                                                        className="text-gray-400 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {g.libros.length === 0 && <p className="text-gray-400 text-center py-4">No hay libros.</p>}
+                                    </div>
+                                    <button onClick={() => { setAlcTitulo(''); setAlcEdit(''); setAlcPrecio(''); setMLibroCat(g.id); }}
+                                        className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium transition-colors text-sm">
+                                        <Plus size={16} /> Agregar Libro
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+                {grados.length === 0 && <p className="text-center py-12 text-gray-400 text-lg">No hay grados.</p>}
+            </div>
+        </div>
+    );
+
+    // === TAB: STOCK ===
+    const StockTab = () => (
+        <div>
+            <div className="flex justify-between items-center mb-6">
+                <p className="text-gray-500">Al ingresar stock, se asignan automáticamente a pedidos pendientes.</p>
+                <button onClick={() => setMStock(true)} className="flex items-center gap-2 px-5 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium shadow-sm transition-all"><Package size={20} /> Ingresar Libros</button>
+            </div>
             <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
                 <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b">
-                        <tr>
-                            <th className="p-5 font-semibold text-gray-600">Título</th>
-                            <th className="p-5 font-semibold text-gray-600">Tipo</th>
-                            <th className="p-5 font-semibold text-gray-600 text-center">Cantidad</th>
-                            <th className="p-5 font-semibold text-gray-600 text-center">Acciones</th>
-                        </tr>
-                    </thead>
+                    <thead className="bg-gray-50 border-b"><tr>
+                        <th className="p-5 font-semibold text-gray-600">Título</th>
+                        <th className="p-5 font-semibold text-gray-600">Tipo</th>
+                        <th className="p-5 font-semibold text-gray-600 text-center">Cantidad</th>
+                        <th className="p-5 font-semibold text-gray-600 text-center">Acciones</th>
+                    </tr></thead>
                     <tbody className="divide-y divide-gray-100">
-                        {stock.map(item => (
-                            <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="p-5 font-bold text-gray-800 text-lg">{item.titulo}</td>
-                                <td className="p-5">
-                                    <span className={`px-3 py-1 rounded-full text-sm font-bold ${item.tipo === 'nuevo' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
-                                        {item.tipo === 'nuevo' ? '📗 Nuevo' : '📙 Usado'}
-                                    </span>
-                                </td>
+                        {stock.map(s => (
+                            <tr key={s.id} className="hover:bg-gray-50"><td className="p-5 font-bold text-gray-800">{s.titulo}</td>
+                                <td className="p-5"><span className={`px-3 py-1 rounded-full text-sm font-bold ${s.tipo === 'nuevo' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>{s.tipo === 'nuevo' ? '📗 Nuevo' : '📙 Usado'}</span></td>
+                                <td className="p-5 text-center"><span className="text-2xl font-black">{s.cantidad}</span></td>
                                 <td className="p-5 text-center">
-                                    <span className="text-2xl font-black text-gray-800">{item.cantidad}</span>
-                                </td>
-                                <td className="p-5 text-center">
-                                    <button onClick={() => {
-                                        if (item.cantidad <= 1) setStock(stock.filter(s => s.id !== item.id));
-                                        else setStock(stock.map(s => s.id === item.id ? { ...s, cantidad: s.cantidad - 1 } : s));
-                                    }}
-                                        className="text-sm px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-colors">
-                                        -1 Unidad
-                                    </button>
+                                    <button onClick={() => setStock(stock.map(x => x.id === s.id ? { ...x, cantidad: Math.max(0, x.cantidad - 1) } : x))}
+                                        disabled={s.cantidad === 0} className="text-sm px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium disabled:opacity-40 disabled:cursor-not-allowed">-1</button>
                                 </td>
                             </tr>
                         ))}
-                        {stock.length === 0 && (
-                            <tr><td colSpan="4" className="p-12 text-center text-gray-400 text-lg">No hay libros en stock.</td></tr>
-                        )}
+                        {stock.length === 0 && <tr><td colSpan="4" className="p-12 text-center text-gray-400 text-lg">No hay libros en stock.</td></tr>}
                     </tbody>
                 </table>
             </div>
         </div>
     );
 
-    // ==========================================
-    // MAIN RENDER
-    // ==========================================
+    // Book selector shared between Nuevo Pedido and Agregar Libros
+    const BookSelector = ({ selGrado, setSelGrado, selBooks, setSelBooks, manual, setManual }) => (
+        <div>
+            <label className="block text-sm font-semibold text-gray-600 mb-2">Seleccionar Grado</label>
+            <select value={selGrado || ''} onChange={e => { setSelGrado(Number(e.target.value) || null); setSelBooks([]); }}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:border-blue-500 outline-none">
+                <option value="">-- Elegir grado --</option>
+                {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+            </select>
+            {selGrado && grados.find(g => g.id === selGrado)?.libros.map(l => (
+                <label key={l.id} className={`flex items-center justify-between gap-3 p-3 mt-2 rounded-xl border cursor-pointer transition-all ${selBooks.some(b => b.titulo === l.titulo) ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                    <div className="flex items-center gap-3">
+                        <input type="checkbox" checked={selBooks.some(b => b.titulo === l.titulo)}
+                            onChange={e => { if (e.target.checked) setSelBooks([...selBooks, { titulo: l.titulo, precio: l.precio }]); else setSelBooks(selBooks.filter(b => b.titulo !== l.titulo)); }}
+                            className="w-5 h-5 rounded text-blue-600" />
+                        <span className="font-medium text-gray-800">{l.titulo}</span>
+                    </div>
+                    <span className="font-bold text-green-600 text-sm">{fmt(l.precio)}</span>
+                </label>
+            ))}
+            {/* Manual book */}
+            <div className="mt-4 pt-4 border-t">
+                <p className="text-sm font-semibold text-gray-600 mb-2">Agregar libro suelto:</p>
+                <div className="flex gap-2">
+                    <input placeholder="Título" value={manual.titulo} onChange={e => setManual({ ...manual, titulo: e.target.value })} className="flex-1 px-3 py-2 border rounded-lg text-sm outline-none focus:border-blue-500" />
+                    <input placeholder="Precio" type="number" value={manual.precio} onChange={e => setManual({ ...manual, precio: e.target.value })} className="w-24 px-3 py-2 border rounded-lg text-sm outline-none focus:border-blue-500" />
+                    <button onClick={() => { if (manual.titulo) { setSelBooks([...selBooks, { titulo: manual.titulo, precio: parseFloat(manual.precio) || 0 }]); setManual({ titulo: '', precio: '' }); } }}
+                        disabled={!manual.titulo} className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:bg-gray-300 hover:bg-blue-700"><Plus size={14} /></button>
+                </div>
+            </div>
+        </div>
+    );
+
+    // === TABS ===
     const tabs = [
         { key: 'pedidos', label: 'Pedidos', icon: BookOpen },
         { key: 'catalogo', label: 'Catálogo por Grado', icon: Settings },
         { key: 'stock', label: 'Stock de Libros', icon: Package },
     ];
 
+    const pedidoPago = mPago ? pedidos.find(p => p.id === mPago) : null;
+    const pedidoAgregar = mAgregar ? pedidos.find(p => p.id === mAgregar) : null;
+
     return (
         <div className="p-8">
-            {notification && (
-                <div className="fixed top-6 right-6 z-50 bg-white border-2 border-green-300 shadow-2xl rounded-2xl px-6 py-4 max-w-md animate-bounce">
-                    <p className="text-gray-800 font-medium whitespace-pre-line">{notification}</p>
-                </div>
-            )}
+            <Notification message={notif} onClose={() => setNotif(null)} />
+            <ConfirmDialog open={!!confirm} onClose={() => setConfirm(null)} onConfirm={() => confirm?.fn()} message={confirm?.msg} />
 
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-3xl font-bold text-gray-800">Encargos Escolares</h2>
-            </div>
-
+            <h2 className="text-3xl font-bold text-gray-800 mb-6">Encargos Escolares</h2>
             <div className="flex gap-2 mb-8 bg-gray-100 p-1.5 rounded-xl w-fit">
-                {tabs.map(tab => (
-                    <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-all text-sm
-              ${activeTab === tab.key ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                        <tab.icon size={16} /> {tab.label}
+                {tabs.map(t => (
+                    <button key={t.key} onClick={() => setTab(t.key)} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-all text-sm ${tab === t.key ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                        <t.icon size={16} /> {t.label}
                     </button>
                 ))}
             </div>
 
-            {activeTab === 'pedidos' && <PedidosTab />}
-            {activeTab === 'catalogo' && <CatalogoTab />}
-            {activeTab === 'stock' && <StockTab />}
+            {tab === 'pedidos' && <PedidosTab />}
+            {tab === 'catalogo' && <CatalogoTab />}
+            {tab === 'stock' && <StockTab />}
+
+            {/* MODAL: Nuevo Pedido */}
+            <Modal open={mNuevo} onClose={() => setMNuevo(false)} title="Nuevo Pedido" wide>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <BookSelector selGrado={npGrado} setSelGrado={setNpGrado} selBooks={npBooks} setSelBooks={setNpBooks} manual={npManual} setManual={setNpManual} />
+                    <div className="space-y-4">
+                        <div><label className="block text-sm font-semibold text-gray-600 mb-1">Cliente *</label>
+                            <input value={npClient} onChange={e => setNpClient(e.target.value)} placeholder="Ej. María" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500" /></div>
+                        <div><label className="block text-sm font-semibold text-gray-600 mb-1">Teléfono (WhatsApp)</label>
+                            <input value={npPhone} onChange={e => setNpPhone(e.target.value)} placeholder="1123456789" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500" /></div>
+                        <div><label className="block text-sm font-semibold text-gray-600 mb-1">Seña / Adelanto ($)</label>
+                            <input type="number" value={npSena} onChange={e => setNpSena(e.target.value)} placeholder="0" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500" /></div>
+                        {npBooks.length > 0 && (
+                            <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+                                <p className="text-sm font-bold text-blue-800 mb-2">Resumen:</p>
+                                {npBooks.map((b, i) => <div key={i} className="flex justify-between text-sm text-blue-700"><span>• {b.titulo}</span><span className="font-bold">{fmt(b.precio)}</span></div>)}
+                                <div className="border-t border-blue-200 mt-2 pt-2 flex justify-between font-bold text-blue-900">
+                                    <span>Total:</span><span>{fmt(npBooks.reduce((s, b) => s + b.precio, 0))}</span>
+                                </div>
+                            </div>
+                        )}
+                        <button onClick={crearPedido} disabled={!npClient || npBooks.length === 0}
+                            className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all">
+                            Crear Pedido ({npBooks.length} libros)
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* MODAL: Agregar Libros a pedido existente */}
+            <Modal open={!!mAgregar} onClose={() => setMAgregar(null)} title={`Agregar Libros — ${pedidoAgregar?.cliente}`} wide>
+                <BookSelector selGrado={alGrado} setSelGrado={setAlGrado} selBooks={alBooks} setSelBooks={setAlBooks} manual={alManual} setManual={setAlManual} />
+                {alBooks.length > 0 && (
+                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 mt-4">
+                        {alBooks.map((b, i) => <div key={i} className="flex justify-between text-sm text-blue-700"><span>• {b.titulo}</span><span className="font-bold">{fmt(b.precio)}</span></div>)}
+                        <div className="border-t border-blue-200 mt-2 pt-2 flex justify-between font-bold text-blue-900"><span>Subtotal:</span><span>{fmt(alBooks.reduce((s, b) => s + b.precio, 0))}</span></div>
+                    </div>
+                )}
+                <button onClick={agregarLibros} disabled={alBooks.length === 0} className="w-full mt-4 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all">
+                    Agregar {alBooks.length} Libro(s)
+                </button>
+            </Modal>
+
+            {/* MODAL: Registrar Pago */}
+            <Modal open={!!mPago} onClose={() => setMPago(null)} title={`Registrar Pago — ${pedidoPago?.cliente}`}>
+                {pedidoPago && (() => {
+                    const c = calcPedido(pedidoPago); return (
+                        <div>
+                            <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-1 text-sm">
+                                <div className="flex justify-between"><span className="text-gray-500">Total pedido:</span><span className="font-bold">{fmt(c.totalPrecio)}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500">Total pagado:</span><span className="font-bold text-green-600">{fmt(c.totalPagado)}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500">Deuda:</span><span className="font-bold text-red-600">{fmt(c.deuda)}</span></div>
+                            </div>
+                            {pedidoPago.pagos.length > 0 && (
+                                <div className="mb-4">
+                                    <p className="text-sm font-semibold text-gray-600 mb-2">Historial:</p>
+                                    {pedidoPago.pagos.map(pa => <div key={pa.id} className="flex justify-between text-sm px-3 py-1.5 bg-gray-50 rounded-lg mb-1"><span>{pa.nota} — {pa.fecha}</span><span className="font-bold text-green-600">{fmt(pa.monto)}</span></div>)}
+                                </div>
+                            )}
+                            <div className="space-y-3">
+                                <div><label className="block text-sm font-semibold text-gray-600 mb-1">Monto *</label>
+                                    <input type="number" value={rpMonto} onChange={e => setRpMonto(e.target.value)} placeholder="10000" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500" /></div>
+                                <div><label className="block text-sm font-semibold text-gray-600 mb-1">Nota</label>
+                                    <input value={rpNota} onChange={e => setRpNota(e.target.value)} placeholder="Ej. Pago efectivo" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500" /></div>
+                                <button onClick={registrarPago} disabled={!rpMonto || parseFloat(rpMonto) <= 0}
+                                    className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all">Registrar Pago</button>
+                            </div>
+                        </div>
+                    );
+                })()}
+            </Modal>
+
+            {/* MODAL: Ingresar Stock */}
+            <Modal open={mStock} onClose={() => setMStock(false)} title="Ingresar Libros al Stock">
+                <div className="space-y-4">
+                    <div><label className="block text-sm font-semibold text-gray-600 mb-1">Título del libro</label>
+                        <input value={isTitulo} onChange={e => setIsTitulo(e.target.value)} placeholder="Ej. Matemática en Acción 1" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500" /></div>
+                    <div><label className="block text-sm font-semibold text-gray-600 mb-1">Cantidad</label>
+                        <input type="number" value={isCant} onChange={e => setIsCant(e.target.value)} min="1" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500" /></div>
+                    <div><label className="block text-sm font-semibold text-gray-600 mb-2">Tipo</label>
+                        <div className="flex gap-4">
+                            {['nuevo', 'usado'].map(t => (
+                                <label key={t} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer font-medium transition-all ${isTipo === t ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:bg-gray-50'}`}>
+                                    <input type="radio" name="tipo" checked={isTipo === t} onChange={() => setIsTipo(t)} className="hidden" />
+                                    {t === 'nuevo' ? '📗 Nuevo' : '📙 Usado'}
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                    <button onClick={ingresarStock} disabled={!isTitulo || !parseInt(isCant)}
+                        className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all">Ingresar</button>
+                </div>
+            </Modal>
+
+            {/* MODAL: Nuevo Grado */}
+            <Modal open={mGrado} onClose={() => setMGrado(false)} title="Nuevo Grado">
+                <div className="space-y-4">
+                    <div><label className="block text-sm font-semibold text-gray-600 mb-1">Nombre del grado</label>
+                        <input value={ngNombre} onChange={e => setNgNombre(e.target.value)} placeholder="Ej. 4to Grado" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500" /></div>
+                    <button onClick={() => { if (ngNombre) { setGrados([...grados, { id: uid(), nombre: ngNombre, libros: [] }]); setMGrado(false); } }}
+                        disabled={!ngNombre} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all">Crear Grado</button>
+                </div>
+            </Modal>
+
+            {/* MODAL: Agregar Libro al Catálogo */}
+            <Modal open={!!mLibroCat} onClose={() => setMLibroCat(null)} title="Agregar Libro al Catálogo">
+                <div className="space-y-4">
+                    <div><label className="block text-sm font-semibold text-gray-600 mb-1">Título *</label>
+                        <input value={alcTitulo} onChange={e => setAlcTitulo(e.target.value)} placeholder="Nombre del libro" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500" /></div>
+                    <div><label className="block text-sm font-semibold text-gray-600 mb-1">Editorial</label>
+                        <input value={alcEdit} onChange={e => setAlcEdit(e.target.value)} placeholder="Opcional" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500" /></div>
+                    <div><label className="block text-sm font-semibold text-gray-600 mb-1">Precio</label>
+                        <input type="number" value={alcPrecio} onChange={e => setAlcPrecio(e.target.value)} placeholder="0" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500" /></div>
+                    <button onClick={() => { if (alcTitulo) { setGrados(grados.map(g => g.id === mLibroCat ? { ...g, libros: [...g.libros, { id: uid(), titulo: alcTitulo, editorial: alcEdit, precio: parseFloat(alcPrecio) || 0 }] } : g)); setMLibroCat(null); } }}
+                        disabled={!alcTitulo} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all">Agregar Libro</button>
+                </div>
+            </Modal>
         </div>
     );
 }

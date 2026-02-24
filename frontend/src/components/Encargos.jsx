@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Plus, MessageCircle, Settings, Package, BookOpen, Trash2, ChevronDown, ChevronRight, Edit2, DollarSign, AlertTriangle, CheckCircle2, Clock, ShoppingCart, X, Search, Loader2 } from 'lucide-react';
+import { Plus, MessageCircle, Settings, Package, BookOpen, Trash2, ChevronDown, ChevronRight, Edit2, DollarSign, AlertTriangle, CheckCircle2, Clock, ShoppingCart, X, Search, Loader2, Archive } from 'lucide-react';
 import { Modal, ConfirmDialog, Notification } from './Modal';
 import api from '../api';
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
@@ -204,6 +204,7 @@ export default function Encargos() {
     const [tab, setTab] = useState('pedidos');
     const [grados, setGrados] = useState([]);
     const [pedidos, setPedidos] = useState([]);
+    const [archivados, setArchivados] = useState([]);
     const [stock, setStock] = useState([]);
     const [expanded, setExpanded] = useState(null);
     const [notif, setNotif] = useState(null);
@@ -211,8 +212,8 @@ export default function Encargos() {
 
     const reload = async () => {
         try {
-            const [g, p, s] = await Promise.all([api.getGrados(), api.getPedidos(), api.getStock()]);
-            setGrados(g); setPedidos(p); setStock(s);
+            const [g, p, s, arch] = await Promise.all([api.getGrados(), api.getPedidos(), api.getStock(), api.getPedidosArchivados()]);
+            setGrados(g); setPedidos(p); setStock(s); setArchivados(arch);
         } catch { notify('❌ Error al cargar datos'); }
     };
     useEffect(() => { reload(); }, []);
@@ -556,6 +557,101 @@ export default function Encargos() {
         );
     };
 
+    // === TAB: ARCHIVO ===
+    const ArchivoTab = () => {
+        const filteredArchivados = archivados.filter(p => {
+            if (!searchQuery) return true;
+            const term = searchQuery.toLowerCase();
+            return (p.cliente && p.cliente.toLowerCase().includes(term)) ||
+                (p.telefono && p.telefono.includes(term));
+        });
+
+        return (
+            <div>
+                <div className="flex gap-3 mb-6 justify-between items-center sm:flex-row flex-col">
+                    <div className="flex gap-3 w-full sm:w-auto">
+                        <span className="text-gray-500 font-medium">Pedidos completados y entregados</span>
+                    </div>
+                    <div className="relative w-full sm:w-auto">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Buscar por cliente o teléfono..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full sm:w-80 pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 shadow-sm text-sm"
+                        />
+                    </div>
+                </div>
+
+                <div className="space-y-3">
+                    {filteredArchivados.length === 0 && (
+                        <div className="text-center py-12 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                            <p className="text-gray-500 font-medium text-lg">No hay pedidos archivados.</p>
+                        </div>
+                    )}
+                    {filteredArchivados.map(p => {
+                        const c = calcPedido(p);
+                        const isExp = expanded === p.id;
+                        return (
+                            <div key={p.id} className="bg-gray-50 rounded-2xl shadow-sm border border-gray-200 overflow-hidden opacity-80">
+                                <div className="flex items-center gap-4 p-4 cursor-pointer transition-colors" onClick={() => setExpanded(isExp ? null : p.id)}>
+                                    {isExp ? <ChevronDown size={18} className="text-gray-400 shrink-0" /> : <ChevronRight size={18} className="text-gray-400 shrink-0" />}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-gray-700 text-lg">{p.cliente}</p>
+                                        <p className="text-xs text-gray-400 flex items-center gap-2"><MessageCircle size={11} /> {p.telefono} · {p.fecha}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                                        {p.libros.map(l => (
+                                            <span key={l.id} className={`text-xs px-2 py-0.5 rounded-full font-bold bg-green-100 text-green-700 border border-green-200`}>
+                                                {l.titulo.length > 20 ? l.titulo.slice(0, 18) + '…' : l.titulo}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <div className="text-right shrink-0 ml-3">
+                                        <p className="font-bold text-gray-600">{fmt(c.totalPrecio)}</p>
+                                        <p className="text-xs text-green-600 font-bold">✓ Entregado</p>
+                                    </div>
+                                </div>
+
+                                {isExp && (
+                                    <div className="border-t border-gray-200 bg-white p-5">
+                                        {/* Libros */}
+                                        <p className="text-sm font-bold text-gray-600 mb-3">Libros del pedido:</p>
+                                        <div className="space-y-2 mb-5">
+                                            {p.libros.map(l => (
+                                                <div key={l.id} className="flex items-center justify-between bg-gray-50 px-4 py-3 rounded-xl border border-gray-100">
+                                                    <div>
+                                                        <span className="font-medium text-gray-600">{l.titulo}</span>
+                                                        <span className="ml-2 text-gray-500 font-bold text-sm">{fmt(l.precio)}</span>
+                                                    </div>
+                                                    <span className="text-xs rounded-lg px-2 py-1 font-bold bg-green-100 text-green-700">Entregado</span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Pagos */}
+                                        <p className="text-sm font-bold text-gray-600 mb-2">Historial de pagos:</p>
+                                        {p.pagos.length > 0 ? (
+                                            <div className="space-y-1">
+                                                {p.pagos.map(pa => (
+                                                    <div key={pa.id} className="flex justify-between text-sm bg-gray-50 px-3 py-2 rounded-lg border border-gray-100">
+                                                        <span className="text-gray-600">{pa.nota} — {pa.fecha}</span>
+                                                        <span className="font-bold text-gray-500">{fmt(pa.monto)}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : <p className="text-sm text-gray-400 italic">Sin pagos registrados</p>}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
     // === TAB: CATÁLOGO ===
     const CatalogoTab = () => (
         <div>
@@ -677,6 +773,7 @@ export default function Encargos() {
         { key: 'gestion', label: 'Gestión de Libros', icon: ShoppingCart },
         { key: 'catalogo', label: 'Catálogo por Grado', icon: Settings },
         { key: 'stock', label: 'Stock de Libros', icon: Package },
+        { key: 'archivo', label: 'Archivo', icon: Archive },
     ];
 
     const pedidoPago = mPago ? pedidos.find(p => p.id === mPago) : null;
@@ -700,6 +797,7 @@ export default function Encargos() {
             {tab === 'pedidos' && <PedidosTab />}
             {tab === 'catalogo' && <CatalogoTab />}
             {tab === 'stock' && <StockTab />}
+            {tab === 'archivo' && <ArchivoTab />}
 
             {/* MODAL: Nuevo Pedido */}
             <Modal open={mNuevo} onClose={() => setMNuevo(false)} title="Nuevo Pedido" wide>

@@ -148,7 +148,11 @@ def delete_libro_catalogo(id: int, db: Session = Depends(get_db)):
 
 @app.get("/pedidos/", response_model=List[schemas.Pedido])
 def list_pedidos(db: Session = Depends(get_db)):
-    return db.query(models.Pedido).all()
+    return db.query(models.Pedido).filter(models.Pedido.archivado == False).all()
+
+@app.get("/pedidos/archivados/", response_model=List[schemas.Pedido])
+def list_pedidos_archivados(db: Session = Depends(get_db)):
+    return db.query(models.Pedido).filter(models.Pedido.archivado == True).all()
 
 @app.post("/pedidos/", response_model=schemas.Pedido)
 def create_pedido(p: schemas.PedidoCreate, db: Session = Depends(get_db)):
@@ -193,9 +197,39 @@ def add_libro_pedido(pedido_id: int, libro: schemas.LibroPedidoCreate, db: Sessi
 def update_libro_estado(id: int, estado: str, db: Session = Depends(get_db)):
     obj = db.query(models.LibroPedido).get(id)
     if not obj: raise HTTPException(404)
+    
+    # Decrease stock if moved to 'entregado'
+    if estado == "entregado" and obj.estado != "entregado":
+        stock = db.query(models.StockLibro).filter(
+            models.StockLibro.titulo == obj.titulo,
+            models.StockLibro.tipo == "nuevo"
+        ).first()
+        if stock and stock.cantidad > 0:
+            stock.cantidad -= 1
+            
+    # Increase stock if moved back from 'entregado'
+    elif obj.estado == "entregado" and estado != "entregado":
+        stock = db.query(models.StockLibro).filter(
+            models.StockLibro.titulo == obj.titulo,
+            models.StockLibro.tipo == "nuevo"
+        ).first()
+        if stock:
+            stock.cantidad += 1
+
     obj.estado = estado
     db.commit(); db.refresh(obj)
-    return {"ok": True, "estado": obj.estado}
+    
+    # Auto-archive order if all books are 'entregado'
+    pedido = obj.pedido
+    todos_entregados = all(l.estado == "entregado" for l in pedido.libros)
+    if todos_entregados and not pedido.archivado:
+        pedido.archivado = True
+        db.commit()
+    elif not todos_entregados and pedido.archivado:
+        pedido.archivado = False
+        db.commit()
+        
+    return {"ok": True, "estado": obj.estado, "archivado": pedido.archivado}
 
 @app.post("/pedidos/{pedido_id}/pagos/", response_model=schemas.PagoPedido)
 def add_pago_pedido(pedido_id: int, pago: schemas.PagoPedidoCreate, db: Session = Depends(get_db)):

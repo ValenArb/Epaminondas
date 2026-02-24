@@ -68,6 +68,7 @@ class PedidoCreate(BaseModel):
     telefono: Optional[str] = None
     fecha: str
     fecha_tentativa: Optional[str] = None
+    archivado: bool = False
     libros: List[LibroPedidoCreate] = []
     sena: float = 0  # initial payment
 
@@ -78,6 +79,7 @@ class Pedido(BaseModel):
     telefono: Optional[str] = None
     fecha: str
     fecha_tentativa: Optional[str] = None
+    archivado: bool = False
     libros: List[LibroPedido] = []
     pagos: List[PagoPedido] = []
 

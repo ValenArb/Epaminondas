@@ -26,6 +26,7 @@ const api = {
 
     // === ENCARGOS — Pedidos ===
     getPedidos: () => fetch(`${BASE}/pedidos/`).then(json),
+    getPedidosArchivados: () => fetch(`${BASE}/pedidos/archivados/`).then(json),
     createPedido: (d) => fetch(`${BASE}/pedidos/`, { method: 'POST', headers: hdr, body: JSON.stringify(d) }).then(json),
     deletePedido: (id) => fetch(`${BASE}/pedidos/${id}`, { method: 'DELETE' }).then(json),
     addLibroPedido: (pedidoId, d) => fetch(`${BASE}/pedidos/${pedidoId}/libros/`, { method: 'POST', headers: hdr, body: JSON.stringify(d) }).then(json),

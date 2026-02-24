@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Text
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Text, Boolean
 from sqlalchemy.orm import relationship
 from .database import Base
 from datetime import datetime
@@ -45,6 +45,7 @@ class Pedido(Base):
     telefono = Column(String, nullable=True)
     fecha = Column(String)
     fecha_tentativa = Column(String, nullable=True)
+    archivado = Column(Boolean, default=False)
     libros = relationship("LibroPedido", back_populates="pedido", cascade="all, delete-orphan")
     pagos = relationship("PagoPedido", back_populates="pedido", cascade="all, delete-orphan")
 

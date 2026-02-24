@@ -245,7 +245,7 @@ def add_pago_pedido(pedido_id: int, pago: schemas.PagoPedidoCreate, db: Session 
 def list_stock(db: Session = Depends(get_db)):
     return db.query(models.StockLibro).all()
 
-@app.post("/stock/", response_model=schemas.StockLibro)
+@app.post("/stock/")
 def create_stock(s: schemas.StockLibroCreate, db: Session = Depends(get_db)):
     # Check if title+type combo exists
     existing = db.query(models.StockLibro).filter(
@@ -253,11 +253,43 @@ def create_stock(s: schemas.StockLibroCreate, db: Session = Depends(get_db)):
     ).first()
     if existing:
         existing.cantidad += s.cantidad
-        db.commit(); db.refresh(existing)
-        return existing
-    obj = models.StockLibro(**s.model_dump())
-    db.add(obj); db.commit(); db.refresh(obj)
-    return obj
+        stock_obj = existing
+    else:
+        stock_obj = models.StockLibro(**s.model_dump())
+        db.add(stock_obj)
+        db.flush()
+
+    # Auto-assign to pending orders (oldest first)
+    asignados = 0
+    if stock_obj.cantidad > 0:
+        pending_libros = (
+            db.query(models.LibroPedido)
+            .join(models.Pedido)
+            .filter(
+                models.LibroPedido.titulo == s.titulo,
+                models.LibroPedido.estado.in_(["faltante", "pedido"]),
+                models.Pedido.archivado == False
+            )
+            .order_by(models.Pedido.fecha.asc())
+            .all()
+        )
+        for libro in pending_libros:
+            if stock_obj.cantidad <= 0:
+                break
+            libro.estado = "en_local"
+            stock_obj.cantidad -= 1
+            asignados += 1
+
+    db.commit()
+    db.refresh(stock_obj)
+    return {
+        "id": stock_obj.id,
+        "titulo": stock_obj.titulo,
+        "isbn": stock_obj.isbn,
+        "tipo": stock_obj.tipo,
+        "cantidad": stock_obj.cantidad,
+        "asignados": asignados
+    }
 
 @app.put("/stock/{id}", response_model=schemas.StockLibro)
 def update_stock(id: int, s: schemas.StockLibroCreate, db: Session = Depends(get_db)):

@@ -209,6 +209,8 @@ export default function Encargos() {
     const [expanded, setExpanded] = useState(null);
     const [notif, setNotif] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [filterEstado, setFilterEstado] = useState('todos');
+    const [sortAsc, setSortAsc] = useState(true);
 
     const reload = async () => {
         try {
@@ -336,8 +338,8 @@ export default function Encargos() {
         try {
             const res = await api.ingresarStock({ titulo: isTitulo, tipo: isTipo, cantidad: parseInt(isCant) });
             let msg = `📦 ${parseInt(isCant)} unid. de "${isTitulo}" (${isTipo})`;
-            if (res.asignados_a_pedidos > 0) msg += `\n🔔 ${res.asignados_a_pedidos} asignadas a pedidos pendientes`;
-            if (res.al_stock > 0) msg += `\n📚 ${res.al_stock} quedaron en stock`;
+            if (res.asignados > 0) msg += `\n🔔 ${res.asignados} asignadas a pedidos pendientes`;
+            if (res.cantidad > 0) msg += `\n📚 ${res.cantidad} quedaron en stock`;
             notify(msg);
             setIsTitulo(''); setIsCant('1'); setIsTipo('nuevo'); setMStock(false); reload();
         } catch { notify('❌ Error al ingresar stock'); }
@@ -425,15 +427,33 @@ export default function Encargos() {
     // === TAB: PEDIDOS ===
     const PedidosTab = () => {
         const filteredPedidos = pedidos.filter(p => {
-            if (!searchQuery) return true;
-            const term = searchQuery.toLowerCase();
-            return (p.cliente && p.cliente.toLowerCase().includes(term)) ||
-                (p.telefono && p.telefono.includes(term));
+            // Text search
+            if (searchQuery) {
+                const term = searchQuery.toLowerCase();
+                const matchesText = (p.cliente && p.cliente.toLowerCase().includes(term)) ||
+                    (p.telefono && p.telefono.includes(term));
+                if (!matchesText) return false;
+            }
+            // Filter by estado
+            if (filterEstado !== 'todos') {
+                return p.libros.some(l => l.estado === filterEstado);
+            }
+            return true;
+        }).sort((a, b) => {
+            if (sortAsc) return (a.fecha || '').localeCompare(b.fecha || '');
+            return (b.fecha || '').localeCompare(a.fecha || '');
         });
+
+        const filterChips = [
+            { key: 'todos', label: 'Todos', cls: 'bg-gray-200 text-gray-700' },
+            { key: 'faltante', label: 'Faltantes', cls: 'bg-red-100 text-red-700' },
+            { key: 'pedido', label: 'Pedidos', cls: 'bg-yellow-100 text-yellow-700' },
+            { key: 'en_local', label: 'En local', cls: 'bg-blue-100 text-blue-700' },
+        ];
 
         return (
             <div>
-                <div className="flex gap-3 mb-6 justify-between items-center sm:flex-row flex-col">
+                <div className="flex gap-3 mb-4 justify-between items-center sm:flex-row flex-col">
                     <div className="flex gap-3 w-full sm:w-auto">
                         <button onClick={() => { resetNuevo(); setMNuevo(true); }} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all text-sm">
                             <Plus size={18} /> Nuevo Pedido
@@ -452,6 +472,22 @@ export default function Encargos() {
                             className="w-full sm:w-80 pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 shadow-sm text-sm"
                         />
                     </div>
+                </div>
+
+                {/* Filter chips + Sort */}
+                <div className="flex gap-2 mb-5 items-center flex-wrap">
+                    {filterChips.map(f => (
+                        <button key={f.key} onClick={() => setFilterEstado(f.key)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${filterEstado === f.key ? f.cls + ' ring-2 ring-offset-1 ring-gray-400 shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                            {f.label}
+                        </button>
+                    ))}
+                    <div className="flex-1" />
+                    <button onClick={() => setSortAsc(!sortAsc)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 transition-all shadow-sm">
+                        <Clock size={13} />
+                        {sortAsc ? '↑ Más viejo' : '↓ Más reciente'}
+                    </button>
                 </div>
 
                 {/* Orders Table */}

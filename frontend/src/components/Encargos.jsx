@@ -318,11 +318,16 @@ export default function Encargos() {
 
     const updateLibroEstado = async (pedidoId, libroId, nuevoEstado) => {
         try {
-            await api.updateLibroEstado(libroId, nuevoEstado);
-            setPedidos(pedidos.map(p => p.id === pedidoId
-                ? { ...p, libros: p.libros.map(l => l.id === libroId ? { ...l, estado: nuevoEstado } : l) }
-                : p
-            ));
+            const res = await api.updateLibroEstado(libroId, nuevoEstado);
+            if (res.archivado) {
+                notify('📦 Pedido completado y enviado al Archivo');
+                reload();
+            } else {
+                setPedidos(pedidos.map(p => p.id === pedidoId
+                    ? { ...p, libros: p.libros.map(l => l.id === libroId ? { ...l, estado: nuevoEstado } : l) }
+                    : p
+                ));
+            }
         } catch { notify('❌ Error al cambiar estado'); }
     };
 

@@ -1,41 +1,47 @@
 import { useState, useMemo } from 'react';
-import { Plus, MessageCircle, Settings, Package, BookOpen, Trash2, ChevronDown, ChevronRight, Edit2, Archive } from 'lucide-react';
+import { Plus, MessageCircle, Settings, Package, BookOpen, Trash2, ChevronDown, ChevronRight, Edit2, DollarSign } from 'lucide-react';
 
 // --- MOCK DATA ---
 const MOCK_GRADOS = [
     {
         id: 1, nombre: '1er Grado',
         libros: [
-            { id: 101, titulo: 'Matemática en Acción 1', isbn: '', editorial: 'Estrada' },
-            { id: 102, titulo: 'Naturales 1', isbn: '', editorial: 'Santillana' },
-            { id: 103, titulo: 'Sociales 1', isbn: '', editorial: 'Kapelusz' },
+            { id: 101, titulo: 'Matemática en Acción 1', isbn: '', editorial: 'Estrada', precio: 8500 },
+            { id: 102, titulo: 'Naturales 1', isbn: '', editorial: 'Santillana', precio: 7200 },
+            { id: 103, titulo: 'Sociales 1', isbn: '', editorial: 'Kapelusz', precio: 7800 },
         ]
     },
     {
         id: 2, nombre: '2do Grado',
         libros: [
-            { id: 201, titulo: 'Matemática en Acción 2', isbn: '', editorial: 'Estrada' },
-            { id: 202, titulo: 'Manual Estrada 2', isbn: '', editorial: 'Estrada' },
+            { id: 201, titulo: 'Matemática en Acción 2', isbn: '', editorial: 'Estrada', precio: 8500 },
+            { id: 202, titulo: 'Manual Estrada 2', isbn: '', editorial: 'Estrada', precio: 12000 },
         ]
     },
     {
         id: 3, nombre: '3er Grado',
         libros: [
-            { id: 301, titulo: 'Ciencias Naturales 3', isbn: '', editorial: 'Aique' },
+            { id: 301, titulo: 'Ciencias Naturales 3', isbn: '', editorial: 'Aique', precio: 9500 },
         ]
     },
 ];
 
 const MOCK_ENCARGOS = [
-    { id: 1, titulo: 'Matemática en Acción 1', cliente: 'Laura', telefono: '1122334455', sena: 5000, estado: 'faltante', fecha: '2024-02-01' },
-    { id: 2, titulo: 'Manual Estrada 2', cliente: 'Pedro', telefono: '1199887766', sena: 0, estado: 'en_local', fecha: '2024-02-05' },
-    { id: 3, titulo: 'Matemática en Acción 1', cliente: 'Carlos', telefono: '1155667788', sena: 2000, estado: 'faltante', fecha: '2024-02-10' },
+    { id: 1, titulo: 'Matemática en Acción 1', cliente: 'Laura', telefono: '1122334455', precio: 8500, sena: 5000, pagado: 5000, estadoPago: 'parcial', estado: 'faltante', fecha: '2024-02-01' },
+    { id: 2, titulo: 'Manual Estrada 2', cliente: 'Pedro', telefono: '1199887766', precio: 12000, sena: 0, pagado: 0, estadoPago: 'nada', estado: 'en_local', fecha: '2024-02-05' },
+    { id: 3, titulo: 'Matemática en Acción 1', cliente: 'Carlos', telefono: '1155667788', precio: 8500, sena: 2000, pagado: 2000, estadoPago: 'parcial', estado: 'faltante', fecha: '2024-02-10' },
 ];
 
 const MOCK_STOCK = [
     { id: 1, titulo: 'Naturales 1', tipo: 'nuevo', cantidad: 3 },
     { id: 2, titulo: 'Manual Estrada 2', tipo: 'usado', cantidad: 1 },
 ];
+
+const PAGO_CONFIG = {
+    total: { label: 'Pagó Total', style: 'bg-green-100 text-green-800' },
+    parcial: { label: 'Pagó Parcial', style: 'bg-yellow-100 text-yellow-800' },
+    nada: { label: 'No Pagó', style: 'bg-red-100 text-red-800' },
+};
 
 export default function Encargos() {
     const [activeTab, setActiveTab] = useState('pedidos');
@@ -51,7 +57,6 @@ export default function Encargos() {
     const [orderPhone, setOrderPhone] = useState('');
     const [orderDeposit, setOrderDeposit] = useState('0');
 
-    // Toast/notification for auto-assignment
     const [notification, setNotification] = useState(null);
 
     const formatMoney = (amount) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amount);
@@ -61,12 +66,14 @@ export default function Encargos() {
         setTimeout(() => setNotification(null), 4000);
     };
 
-    // Get all unique book titles from the catalog
-    const allCatalogTitles = useMemo(() => {
-        const titles = new Set();
-        grados.forEach(g => g.libros.forEach(l => titles.add(l.titulo)));
-        return [...titles].sort();
-    }, [grados]);
+    // Helper: get price for a book title from catalog
+    const getPriceForTitle = (titulo) => {
+        for (const g of grados) {
+            const libro = g.libros.find(l => l.titulo === titulo);
+            if (libro) return libro.precio;
+        }
+        return 0;
+    };
 
     const handleWhatsApp = (phone, title) => {
         const cleanPhone = phone.replace(/\D/g, '');
@@ -76,6 +83,23 @@ export default function Encargos() {
 
     const updateOrderStatus = (id, newStatus) => {
         setEncargos(encargos.map(b => b.id === id ? { ...b, estado: newStatus } : b));
+    };
+
+    const updatePaymentStatus = (id, newPago) => {
+        setEncargos(encargos.map(order => {
+            if (order.id !== id) return order;
+            if (newPago === 'total') {
+                return { ...order, estadoPago: 'total', pagado: order.precio };
+            } else if (newPago === 'nada') {
+                return { ...order, estadoPago: 'nada', pagado: 0 };
+            } else {
+                // Partial: ask amount
+                const montoStr = prompt(`Monto pagado parcialmente (de ${formatMoney(order.precio)}):`, String(order.pagado));
+                if (!montoStr || isNaN(montoStr)) return order;
+                const monto = parseFloat(montoStr);
+                return { ...order, estadoPago: 'parcial', pagado: monto };
+            }
+        }));
     };
 
     const statusConfig = {
@@ -93,18 +117,24 @@ export default function Encargos() {
             alert('Completá el nombre del cliente y seleccioná al menos un libro.');
             return;
         }
-        const newOrders = selectedBooks.map(titulo => ({
-            id: Date.now() + Math.random(),
-            titulo,
-            cliente: orderClient,
-            telefono: orderPhone,
-            sena: parseFloat(orderDeposit) || 0,
-            estado: 'faltante',
-            fecha: new Date().toISOString().split('T')[0]
-        }));
+        const sena = parseFloat(orderDeposit) || 0;
+        const newOrders = selectedBooks.map(titulo => {
+            const precio = getPriceForTitle(titulo);
+            return {
+                id: Date.now() + Math.random(),
+                titulo,
+                cliente: orderClient,
+                telefono: orderPhone,
+                precio,
+                sena,
+                pagado: sena,
+                estadoPago: sena >= precio ? 'total' : sena > 0 ? 'parcial' : 'nada',
+                estado: 'faltante',
+                fecha: new Date().toISOString().split('T')[0]
+            };
+        });
         setEncargos([...encargos, ...newOrders]);
         showNotification(`✅ Se crearon ${newOrders.length} encargo(s) para ${orderClient}`);
-        // Reset
         setShowNewOrder(false);
         setSelectedGrado(null);
         setSelectedBooks([]);
@@ -119,9 +149,14 @@ export default function Encargos() {
         const cliente = prompt("Nombre de quien encarga:");
         if (!cliente) return;
         const telefono = prompt("Teléfono (Para avisarle por WhatsApp):");
+        const precioStr = prompt("Precio del libro:", "0");
+        const precio = parseFloat(precioStr) || 0;
         const deposit = prompt("¿Dejó seña? (Ingresar monto, o 0 si no dejó):", "0");
+        const sena = parseFloat(deposit) || 0;
         setEncargos([...encargos, {
-            id: Date.now(), titulo, cliente, telefono: telefono || '', sena: parseFloat(deposit) || 0, estado: 'faltante', fecha: new Date().toISOString().split('T')[0]
+            id: Date.now(), titulo, cliente, telefono: telefono || '', precio, sena, pagado: sena,
+            estadoPago: sena >= precio && precio > 0 ? 'total' : sena > 0 ? 'parcial' : 'nada',
+            estado: 'faltante', fecha: new Date().toISOString().split('T')[0]
         }]);
     };
 
@@ -144,7 +179,6 @@ export default function Encargos() {
         let assigned = 0;
         const updatedEncargos = [...encargos];
 
-        // Sort by date (oldest first), then auto-assign
         const pendingIndexes = updatedEncargos
             .map((e, i) => ({ ...e, _idx: i }))
             .filter(e => e.titulo.toLowerCase() === titulo.toLowerCase() && e.estado === 'faltante')
@@ -159,7 +193,6 @@ export default function Encargos() {
 
         setEncargos(updatedEncargos);
 
-        // Add remaining to stock
         if (remaining > 0) {
             const existingIdx = stock.findIndex(s => s.titulo.toLowerCase() === titulo.toLowerCase() && s.tipo === tipo);
             if (existingIdx >= 0) {
@@ -180,6 +213,11 @@ export default function Encargos() {
     // ==========================================
     // TAB: PEDIDOS
     // ==========================================
+    const selectedGradoData = grados.find(g => g.id === selectedGrado);
+    const selectedBooksTotal = useMemo(() => {
+        return selectedBooks.reduce((sum, titulo) => sum + getPriceForTitle(titulo), 0);
+    }, [selectedBooks, grados]);
+
     const PedidosTab = () => (
         <div>
             <div className="flex justify-between items-center mb-6">
@@ -205,33 +243,30 @@ export default function Encargos() {
                         {/* Left: Grade & Book Selection */}
                         <div>
                             <label className="block text-sm font-semibold text-gray-600 mb-2">Seleccionar Grado</label>
-                            <select
-                                value={selectedGrado || ''}
-                                onChange={(e) => { setSelectedGrado(Number(e.target.value) || null); setSelectedBooks([]); }}
-                                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
-                            >
+                            <select value={selectedGrado || ''} onChange={(e) => { setSelectedGrado(Number(e.target.value) || null); setSelectedBooks([]); }}
+                                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none">
                                 <option value="">-- Elegir grado --</option>
                                 {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
                             </select>
 
-                            {selectedGrado && (
+                            {selectedGrado && selectedGradoData && (
                                 <div className="mt-4 space-y-2">
                                     <p className="text-sm font-semibold text-gray-600 mb-2">Libros disponibles:</p>
-                                    {grados.find(g => g.id === selectedGrado)?.libros.map(libro => (
-                                        <label key={libro.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedBooks.includes(libro.titulo) ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedBooks.includes(libro.titulo)}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) setSelectedBooks([...selectedBooks, libro.titulo]);
-                                                    else setSelectedBooks(selectedBooks.filter(t => t !== libro.titulo));
-                                                }}
-                                                className="w-5 h-5 rounded text-blue-600"
-                                            />
-                                            <div>
-                                                <span className="font-medium text-gray-800">{libro.titulo}</span>
-                                                {libro.editorial && <span className="text-sm text-gray-500 ml-2">({libro.editorial})</span>}
+                                    {selectedGradoData.libros.map(libro => (
+                                        <label key={libro.id} className={`flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedBooks.includes(libro.titulo) ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                                            <div className="flex items-center gap-3">
+                                                <input type="checkbox" checked={selectedBooks.includes(libro.titulo)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setSelectedBooks([...selectedBooks, libro.titulo]);
+                                                        else setSelectedBooks(selectedBooks.filter(t => t !== libro.titulo));
+                                                    }}
+                                                    className="w-5 h-5 rounded text-blue-600" />
+                                                <div>
+                                                    <span className="font-medium text-gray-800">{libro.titulo}</span>
+                                                    {libro.editorial && <span className="text-sm text-gray-500 ml-2">({libro.editorial})</span>}
+                                                </div>
                                             </div>
+                                            <span className="font-bold text-green-600 text-sm whitespace-nowrap">{formatMoney(libro.precio)}</span>
                                         </label>
                                     ))}
                                 </div>
@@ -260,8 +295,15 @@ export default function Encargos() {
                                 <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
                                     <p className="text-sm font-bold text-blue-800 mb-2">Resumen ({selectedBooks.length} libros):</p>
                                     <ul className="text-sm text-blue-700 space-y-1">
-                                        {selectedBooks.map((t, i) => <li key={i}>• {t}</li>)}
+                                        {selectedBooks.map((t, i) => <li key={i} className="flex justify-between">
+                                            <span>• {t}</span>
+                                            <span className="font-bold">{formatMoney(getPriceForTitle(t))}</span>
+                                        </li>)}
                                     </ul>
+                                    <div className="border-t border-blue-200 mt-3 pt-3 flex justify-between font-bold text-blue-900">
+                                        <span>Total:</span>
+                                        <span className="text-lg">{formatMoney(selectedBooksTotal)}</span>
+                                    </div>
                                 </div>
                             )}
 
@@ -280,53 +322,64 @@ export default function Encargos() {
                 <table className="w-full text-left">
                     <thead className="bg-gray-50 border-b">
                         <tr>
-                            <th className="p-5 font-semibold text-gray-600">Libro / Material</th>
-                            <th className="p-5 font-semibold text-gray-600">Cliente y Teléfono</th>
-                            <th className="p-5 font-semibold text-gray-600">Seña</th>
-                            <th className="p-5 font-semibold text-gray-600">Estado</th>
-                            <th className="p-5 font-semibold text-center text-gray-600">Avisar</th>
+                            <th className="p-4 font-semibold text-gray-600">Libro / Material</th>
+                            <th className="p-4 font-semibold text-gray-600">Cliente</th>
+                            <th className="p-4 font-semibold text-gray-600 text-right">Precio</th>
+                            <th className="p-4 font-semibold text-gray-600">Pago</th>
+                            <th className="p-4 font-semibold text-gray-600">Estado</th>
+                            <th className="p-4 font-semibold text-center text-gray-600">Avisar</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {encargos.map(order => (
                             <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="p-5">
-                                    <p className="font-bold text-gray-800 text-lg">{order.titulo}</p>
+                                <td className="p-4">
+                                    <p className="font-bold text-gray-800">{order.titulo}</p>
                                     <p className="text-xs text-gray-400 mt-1">{order.fecha}</p>
                                 </td>
-                                <td className="p-5">
+                                <td className="p-4">
                                     <p className="font-bold text-gray-800">{order.cliente}</p>
-                                    <p className="text-sm text-gray-500 font-mono mt-1 flex items-center gap-1">
-                                        <MessageCircle size={12} /> {order.telefono}
+                                    <p className="text-xs text-gray-500 font-mono mt-1 flex items-center gap-1">
+                                        <MessageCircle size={11} /> {order.telefono}
                                     </p>
                                 </td>
-                                <td className="p-5">
-                                    {order.sena > 0 ? (
-                                        <span className="bg-green-100 text-green-800 px-3 py-1 rounded-lg font-bold">{formatMoney(order.sena)}</span>
-                                    ) : (
-                                        <span className="text-gray-400 text-sm font-medium italic">Sin seña</span>
+                                <td className="p-4 text-right">
+                                    <span className="font-bold text-lg text-green-600">{formatMoney(order.precio)}</span>
+                                    {order.pagado > 0 && order.estadoPago !== 'total' && (
+                                        <p className="text-xs text-gray-500 mt-1">Pagó: {formatMoney(order.pagado)}</p>
+                                    )}
+                                    {order.estadoPago !== 'total' && order.precio > 0 && (
+                                        <p className="text-xs text-red-500 font-medium mt-0.5">Debe: {formatMoney(order.precio - order.pagado)}</p>
                                     )}
                                 </td>
-                                <td className="p-5">
+                                <td className="p-4">
+                                    <select value={order.estadoPago} onChange={(e) => updatePaymentStatus(order.id, e.target.value)}
+                                        className={`text-sm rounded-xl px-3 py-2 cursor-pointer outline-none focus:ring-2 focus:ring-blue-500 appearance-none font-bold ${PAGO_CONFIG[order.estadoPago].style}`}>
+                                        {Object.entries(PAGO_CONFIG).map(([key, cfg]) => (
+                                            <option key={key} value={key} className="bg-white text-gray-800 font-medium">{cfg.label}</option>
+                                        ))}
+                                    </select>
+                                </td>
+                                <td className="p-4">
                                     <select value={order.estado} onChange={(e) => updateOrderStatus(order.id, e.target.value)}
-                                        className={`text-sm rounded-xl px-4 py-2 cursor-pointer outline-none focus:ring-2 focus:ring-blue-500 appearance-none ${statusConfig[order.estado].style}`}>
+                                        className={`text-sm rounded-xl px-3 py-2 cursor-pointer outline-none focus:ring-2 focus:ring-blue-500 appearance-none ${statusConfig[order.estado].style}`}>
                                         {Object.keys(statusConfig).map(key => (
                                             <option key={key} value={key} className="bg-white text-gray-800 font-medium">{statusConfig[key].label}</option>
                                         ))}
                                     </select>
                                 </td>
-                                <td className="p-5 text-center">
+                                <td className="p-4 text-center">
                                     {order.estado === 'en_local' ? (
                                         <button onClick={() => handleWhatsApp(order.telefono, order.titulo)}
-                                            className="flex items-center gap-2 mx-auto px-4 py-2 bg-[#25D366] text-white rounded-xl hover:bg-[#128C7E] shadow-sm transition-all font-bold text-sm">
-                                            <MessageCircle size={18} /> Avisar
+                                            className="flex items-center gap-2 mx-auto px-3 py-2 bg-[#25D366] text-white rounded-xl hover:bg-[#128C7E] shadow-sm transition-all font-bold text-sm">
+                                            <MessageCircle size={16} /> Avisar
                                         </button>
                                     ) : (<span className="text-gray-300">-</span>)}
                                 </td>
                             </tr>
                         ))}
                         {encargos.length === 0 && (
-                            <tr><td colSpan="5" className="p-12 text-center text-gray-400 text-lg">No hay encargos registrados.</td></tr>
+                            <tr><td colSpan="6" className="p-12 text-center text-gray-400 text-lg">No hay encargos registrados.</td></tr>
                         )}
                     </tbody>
                 </table>
@@ -362,8 +415,21 @@ export default function Encargos() {
             const titulo = prompt("Título del libro:");
             if (!titulo) return;
             const editorial = prompt("Editorial (opcional):", "") || '';
+            const precioStr = prompt("Precio del libro:", "0");
+            const precio = parseFloat(precioStr) || 0;
             setGrados(grados.map(g => g.id === gradoId
-                ? { ...g, libros: [...g.libros, { id: Date.now(), titulo, isbn: '', editorial }] }
+                ? { ...g, libros: [...g.libros, { id: Date.now(), titulo, isbn: '', editorial, precio }] }
+                : g
+            ));
+        };
+
+        const handleEditPrecio = (gradoId, libroId) => {
+            const grado = grados.find(g => g.id === gradoId);
+            const libro = grado.libros.find(l => l.id === libroId);
+            const precioStr = prompt(`Nuevo precio para "${libro.titulo}":`, String(libro.precio));
+            if (!precioStr || isNaN(precioStr)) return;
+            setGrados(grados.map(g => g.id === gradoId
+                ? { ...g, libros: g.libros.map(l => l.id === libroId ? { ...l, precio: parseFloat(precioStr) } : l) }
                 : g
             ));
         };
@@ -378,68 +444,68 @@ export default function Encargos() {
         return (
             <div>
                 <div className="flex justify-between items-center mb-6">
-                    <p className="text-gray-500">Configurá los libros que corresponden a cada grado. Se usan en el selector de "Nuevo Encargo".</p>
+                    <p className="text-gray-500">Configurá los libros por grado con sus precios. Se usan en el selector de "Nuevo Encargo".</p>
                     <button onClick={handleAddGrado} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all">
                         <Plus size={20} /> Nuevo Grado
                     </button>
                 </div>
 
                 <div className="space-y-4">
-                    {grados.map(grado => (
-                        <div key={grado.id} className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-                            <div
-                                className="flex justify-between items-center p-5 cursor-pointer hover:bg-gray-50 transition-colors"
-                                onClick={() => setExpandedGrado(expandedGrado === grado.id ? null : grado.id)}
-                            >
-                                <div className="flex items-center gap-3">
-                                    {expandedGrado === grado.id ? <ChevronDown size={20} className="text-gray-400" /> : <ChevronRight size={20} className="text-gray-400" />}
-                                    <h3 className="text-xl font-bold text-gray-800">{grado.nombre}</h3>
-                                    <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">{grado.libros.length} libros</span>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button onClick={(e) => { e.stopPropagation(); handleRenameGrado(grado.id); }}
-                                        className="p-2 text-gray-400 hover:text-blue-600 transition-colors" title="Renombrar">
-                                        <Edit2 size={16} />
-                                    </button>
-                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteGrado(grado.id); }}
-                                        className="p-2 text-gray-400 hover:text-red-600 transition-colors" title="Eliminar grado">
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {expandedGrado === grado.id && (
-                                <div className="border-t bg-gray-50/50 p-5">
-                                    <div className="space-y-2 mb-4">
-                                        {grado.libros.map(libro => (
-                                            <div key={libro.id} className="flex justify-between items-center bg-white px-4 py-3 rounded-xl border">
-                                                <div>
-                                                    <span className="font-medium text-gray-800">{libro.titulo}</span>
-                                                    {libro.editorial && <span className="text-sm text-gray-500 ml-2">— {libro.editorial}</span>}
-                                                </div>
-                                                <button onClick={() => handleDeleteLibro(grado.id, libro.id)}
-                                                    className="text-gray-400 hover:text-red-500 transition-colors p-1">
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </div>
-                                        ))}
-                                        {grado.libros.length === 0 && (
-                                            <p className="text-gray-400 text-center py-4">No hay libros asignados a este grado.</p>
-                                        )}
+                    {grados.map(grado => {
+                        const totalGrado = grado.libros.reduce((s, l) => s + l.precio, 0);
+                        return (
+                            <div key={grado.id} className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+                                <div className="flex justify-between items-center p-5 cursor-pointer hover:bg-gray-50 transition-colors"
+                                    onClick={() => setExpandedGrado(expandedGrado === grado.id ? null : grado.id)}>
+                                    <div className="flex items-center gap-3">
+                                        {expandedGrado === grado.id ? <ChevronDown size={20} className="text-gray-400" /> : <ChevronRight size={20} className="text-gray-400" />}
+                                        <h3 className="text-xl font-bold text-gray-800">{grado.nombre}</h3>
+                                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">{grado.libros.length} libros</span>
+                                        {totalGrado > 0 && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold">{formatMoney(totalGrado)}</span>}
                                     </div>
-                                    <button onClick={() => handleAddLibro(grado.id)}
-                                        className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium transition-colors text-sm">
-                                        <Plus size={16} /> Agregar Libro
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button onClick={(e) => { e.stopPropagation(); handleRenameGrado(grado.id); }}
+                                            className="p-2 text-gray-400 hover:text-blue-600 transition-colors"><Edit2 size={16} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteGrado(grado.id); }}
+                                            className="p-2 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
+                                    </div>
                                 </div>
-                            )}
-                        </div>
-                    ))}
+
+                                {expandedGrado === grado.id && (
+                                    <div className="border-t bg-gray-50/50 p-5">
+                                        <div className="space-y-2 mb-4">
+                                            {grado.libros.map(libro => (
+                                                <div key={libro.id} className="flex justify-between items-center bg-white px-4 py-3 rounded-xl border">
+                                                    <div className="flex-1">
+                                                        <span className="font-medium text-gray-800">{libro.titulo}</span>
+                                                        {libro.editorial && <span className="text-sm text-gray-500 ml-2">— {libro.editorial}</span>}
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <button onClick={() => handleEditPrecio(grado.id, libro.id)}
+                                                            className="font-bold text-green-600 hover:text-green-800 transition-colors flex items-center gap-1">
+                                                            <DollarSign size={14} /> {formatMoney(libro.precio)}
+                                                        </button>
+                                                        <button onClick={() => handleDeleteLibro(grado.id, libro.id)}
+                                                            className="text-gray-400 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {grado.libros.length === 0 && (
+                                                <p className="text-gray-400 text-center py-4">No hay libros asignados a este grado.</p>
+                                            )}
+                                        </div>
+                                        <button onClick={() => handleAddLibro(grado.id)}
+                                            className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium transition-colors text-sm">
+                                            <Plus size={16} /> Agregar Libro
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
 
                     {grados.length === 0 && (
-                        <div className="text-center py-12 text-gray-400 text-lg">
-                            No hay grados configurados. Creá uno para empezar.
-                        </div>
+                        <div className="text-center py-12 text-gray-400 text-lg">No hay grados configurados. Creá uno para empezar.</div>
                     )}
                 </div>
             </div>
@@ -482,11 +548,8 @@ export default function Encargos() {
                                 </td>
                                 <td className="p-5 text-center">
                                     <button onClick={() => {
-                                        if (item.cantidad <= 1) {
-                                            setStock(stock.filter(s => s.id !== item.id));
-                                        } else {
-                                            setStock(stock.map(s => s.id === item.id ? { ...s, cantidad: s.cantidad - 1 } : s));
-                                        }
+                                        if (item.cantidad <= 1) setStock(stock.filter(s => s.id !== item.id));
+                                        else setStock(stock.map(s => s.id === item.id ? { ...s, cantidad: s.cantidad - 1 } : s));
                                     }}
                                         className="text-sm px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-colors">
                                         -1 Unidad
@@ -514,7 +577,6 @@ export default function Encargos() {
 
     return (
         <div className="p-8">
-            {/* Notification Toast */}
             {notification && (
                 <div className="fixed top-6 right-6 z-50 bg-white border-2 border-green-300 shadow-2xl rounded-2xl px-6 py-4 max-w-md animate-bounce">
                     <p className="text-gray-800 font-medium whitespace-pre-line">{notification}</p>
@@ -525,7 +587,6 @@ export default function Encargos() {
                 <h2 className="text-3xl font-bold text-gray-800">Encargos Escolares</h2>
             </div>
 
-            {/* Sub-tabs */}
             <div className="flex gap-2 mb-8 bg-gray-100 p-1.5 rounded-xl w-fit">
                 {tabs.map(tab => (
                     <button key={tab.key} onClick={() => setActiveTab(tab.key)}

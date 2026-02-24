@@ -422,157 +422,146 @@ export default function Encargos() {
         );
     };
 
-    // === TAB: PEDIDOS ===
-    const PedidosTab = () => {
-        const filteredPedidos = pedidos.filter(p => {
-            if (!searchQuery) return true;
-            const term = searchQuery.toLowerCase();
-            return (p.cliente && p.cliente.toLowerCase().includes(term)) ||
-                (p.telefono && p.telefono.includes(term));
-        });
+    // === VIEW: PEDIDOS ===
+    const filteredPedidos = pedidos.filter(p => {
+        if (!searchQuery) return true;
+        const term = searchQuery.toLowerCase();
+        return (p.cliente && p.cliente.toLowerCase().includes(term)) ||
+            (p.telefono && p.telefono.includes(term));
+    });
+    <div className="flex gap-3 mb-6 justify-between items-center sm:flex-row flex-col">
+        <div className="flex gap-3 w-full sm:w-auto">
+            <button onClick={() => { resetNuevo(); setMNuevo(true); }} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all text-sm">
+                <Plus size={18} /> Nuevo Pedido
+            </button>
+            <button onClick={() => setMStock(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium shadow-sm transition-all text-sm">
+                <Package size={16} /> Ingresar Libros
+            </button>
+        </div>
+        <div className="relative w-full sm:w-auto">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+                type="text"
+                placeholder="Buscar por cliente o teléfono..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full sm:w-80 pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 shadow-sm text-sm"
+            />
+        </div>
+    </div>
 
-        return (
-            <div>
-                <div className="flex gap-3 mb-6 justify-between items-center sm:flex-row flex-col">
-                    <div className="flex gap-3 w-full sm:w-auto">
-                        <button onClick={() => { resetNuevo(); setMNuevo(true); }} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all text-sm">
-                            <Plus size={18} /> Nuevo Pedido
-                        </button>
-                        <button onClick={() => setMStock(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium shadow-sm transition-all text-sm">
-                            <Package size={16} /> Ingresar Libros
-                        </button>
-                    </div>
-                    <div className="relative w-full sm:w-auto">
-                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Buscar por cliente o teléfono..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full sm:w-80 pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 shadow-sm text-sm"
-                        />
-                    </div>
-                </div>
-
-                {/* Orders Table */}
-                <div className="space-y-3">
-                    {filteredPedidos.length === 0 && (
-                        <div className="text-center py-12 bg-white rounded-2xl border border-gray-100 shadow-sm">
-                            <p className="text-gray-500 font-medium text-lg">No se encontraron pedidos.</p>
-                        </div>
-                    )}
-                    {filteredPedidos.map(p => {
-                        const c = calcPedido(p);
-                        const isExp = expanded === p.id;
-                        return (
-                            <div key={p.id} className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-                                <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setExpanded(isExp ? null : p.id)}>
-                                    {isExp ? <ChevronDown size={18} className="text-gray-400 shrink-0" /> : <ChevronRight size={18} className="text-gray-400 shrink-0" />}
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-bold text-gray-800 text-lg">{p.cliente}</p>
-                                        <p className="text-xs text-gray-400 flex items-center gap-2"><MessageCircle size={11} /> {p.telefono} · {p.fecha} {p.fecha_tentativa && `· Aprox: ${p.fecha_tentativa}`}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2 flex-wrap justify-end">
-                                        {p.libros.map(l => (
-                                            <span key={l.id} className={`text-xs px-2 py-0.5 rounded-full font-bold ${ESTADO_LIBRO[l.estado].cls}`}>
-                                                {l.titulo.length > 20 ? l.titulo.slice(0, 18) + '…' : l.titulo}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <div className="text-right shrink-0 ml-3">
-                                        <p className="font-bold text-green-600">{fmt(c.totalPrecio)}</p>
-                                        {c.pagoDeMas > 0 ? <p className="text-xs text-blue-600 font-bold">💳 Pago a favor: {fmt(c.pagoDeMas)}</p> : c.deuda > 0 ? <p className="text-xs text-red-500 font-bold">Debe: {fmt(c.deuda)}</p> : <p className="text-xs text-green-600 font-bold">✓ Pago completo</p>}
-                                    </div>
-                                </div>
-
-                                {isExp && (
-                                    <div className="border-t bg-gray-50/50 p-5">
-                                        {/* Libros */}
-                                        <p className="text-sm font-bold text-gray-600 mb-3">Libros del pedido:</p>
-                                        <div className="space-y-2 mb-5">
-                                            {p.libros.map(l => (
-                                                <div key={l.id} className="flex items-center justify-between bg-white px-4 py-3 rounded-xl border">
-                                                    <div>
-                                                        <span className="font-medium text-gray-800">{l.titulo}</span>
-                                                        <span className="ml-2 text-green-600 font-bold text-sm">{fmt(l.precio)}</span>
-                                                    </div>
-                                                    <select
-                                                        value={l.estado}
-                                                        onChange={(e) => updateLibroEstado(p.id, l.id, e.target.value)}
-                                                        className={`text-xs rounded-lg px-2 py-1 font-bold outline-none cursor-pointer hover:opacity-80 transition-opacity ${ESTADO_LIBRO[l.estado]?.cls || 'bg-gray-100 text-gray-600'}`}
-                                                    >
-                                                        {Object.entries(ESTADO_LIBRO).map(([k, v]) => (
-                                                            <option key={k} value={k} className="bg-white text-gray-800">{v.label}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        {/* Retiro info */}
-                                        {c.enLocal > 0 && (
-                                            <div className={`p-4 rounded-xl mb-5 border ${c.puedeRetirar ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
-                                                <p className="font-bold text-sm mb-1">{c.puedeRetirar ? '✅ Puede retirar' : '⚠️ No puede retirar aún'}</p>
-                                                <p className="text-xs text-gray-600">
-                                                    {c.enLocal} libro(s) listos ({fmt(c.costoRetiro)}) + {c.reservados} reserv. al 50% ({fmt(c.costoReserva)}) = Mínimo {fmt(c.minRetiro)}
-                                                </p>
-                                                <p className="text-xs text-gray-600">Pagado: {fmt(c.totalPagado)}{!c.puedeRetirar && ` — Falta: ${fmt(c.faltaRetiro)}`}</p>
-                                            </div>
-                                        )}
-
-                                        {/* Pagos */}
-                                        <p className="text-sm font-bold text-gray-600 mb-2">Historial de pagos:</p>
-                                        {p.pagos.length > 0 ? (
-                                            <div className="space-y-1 mb-4">
-                                                {p.pagos.map(pa => (
-                                                    <div key={pa.id} className="flex justify-between text-sm bg-white px-3 py-2 rounded-lg border">
-                                                        <span className="text-gray-700">{pa.nota} — {pa.fecha}</span>
-                                                        <span className="font-bold text-green-600">{fmt(pa.monto)}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : <p className="text-sm text-gray-400 mb-4 italic">Sin pagos registrados</p>}
-
-                                        {/* Actions */}
-                                        <div className="flex gap-2 flex-wrap pt-3 border-t">
-                                            <button onClick={() => { resetAgregar(); setMAgregar(p.id); }}
-                                                className="flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium text-sm transition-colors">
-                                                <Plus size={14} /> Agregar Libros
-                                            </button>
-                                            <button onClick={() => { setRpMonto(''); setRpNota(''); setMPago(p.id); }}
-                                                className="flex items-center gap-1.5 px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 font-medium text-sm transition-colors">
-                                                <DollarSign size={14} /> Registrar Pago
-                                            </button>
-                                            {c.enLocal > 0 && (
-                                                <button onClick={() => handleWhatsApp(p.telefono, p.libros)}
-                                                    className="flex items-center gap-1.5 px-4 py-2 bg-[#25D366]/10 text-[#128C7E] rounded-lg hover:bg-[#25D366]/20 font-medium text-sm transition-colors">
-                                                    <MessageCircle size={14} /> Avisar por WhatsApp
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                )
-                                }
-                            </div>
-                        );
-                    })}
-                    {pedidos.length === 0 && <p className="text-center py-12 text-gray-400 text-lg">No hay pedidos. Creá uno con el botón de arriba.</p>}
-                </div>
+    {/* Orders Table */ }
+    <div className="space-y-3">
+        {filteredPedidos.length === 0 && (
+            <div className="text-center py-12 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <p className="text-gray-500 font-medium text-lg">No se encontraron pedidos.</p>
             </div>
-        );
-    };
+        )}
+        {filteredPedidos.map(p => {
+            const c = calcPedido(p);
+            const isExp = expanded === p.id;
+            return (
+                <div key={p.id} className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+                    <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setExpanded(isExp ? null : p.id)}>
+                        {isExp ? <ChevronDown size={18} className="text-gray-400 shrink-0" /> : <ChevronRight size={18} className="text-gray-400 shrink-0" />}
+                        <div className="flex-1 min-w-0">
+                            <p className="font-bold text-gray-800 text-lg">{p.cliente}</p>
+                            <p className="text-xs text-gray-400 flex items-center gap-2"><MessageCircle size={11} /> {p.telefono} · {p.fecha} {p.fecha_tentativa && `· Aprox: ${p.fecha_tentativa}`}</p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap justify-end">
+                            {p.libros.map(l => (
+                                <span key={l.id} className={`text-xs px-2 py-0.5 rounded-full font-bold ${ESTADO_LIBRO[l.estado].cls}`}>
+                                    {l.titulo.length > 20 ? l.titulo.slice(0, 18) + '…' : l.titulo}
+                                </span>
+                            ))}
+                        </div>
+                        <div className="text-right shrink-0 ml-3">
+                            <p className="font-bold text-green-600">{fmt(c.totalPrecio)}</p>
+                            {c.pagoDeMas > 0 ? <p className="text-xs text-blue-600 font-bold">💳 Pago a favor: {fmt(c.pagoDeMas)}</p> : c.deuda > 0 ? <p className="text-xs text-red-500 font-bold">Debe: {fmt(c.deuda)}</p> : <p className="text-xs text-green-600 font-bold">✓ Pago completo</p>}
+                        </div>
+                    </div>
 
-    // === TAB: ARCHIVO ===
-    const ArchivoTab = () => {
-        const filteredArchivados = archivados.filter(p => {
-            if (!searchQuery) return true;
-            const term = searchQuery.toLowerCase();
-            return (p.cliente && p.cliente.toLowerCase().includes(term)) ||
-                (p.telefono && p.telefono.includes(term));
-        });
+                    {isExp && (
+                        <div className="border-t bg-gray-50/50 p-5">
+                            {/* Libros */}
+                            <p className="text-sm font-bold text-gray-600 mb-3">Libros del pedido:</p>
+                            <div className="space-y-2 mb-5">
+                                {p.libros.map(l => (
+                                    <div key={l.id} className="flex items-center justify-between bg-white px-4 py-3 rounded-xl border">
+                                        <div>
+                                            <span className="font-medium text-gray-800">{l.titulo}</span>
+                                            <span className="ml-2 text-green-600 font-bold text-sm">{fmt(l.precio)}</span>
+                                        </div>
+                                        <select
+                                            value={l.estado}
+                                            onChange={(e) => updateLibroEstado(p.id, l.id, e.target.value)}
+                                            className={`text-xs rounded-lg px-2 py-1 font-bold outline-none cursor-pointer hover:opacity-80 transition-opacity ${ESTADO_LIBRO[l.estado]?.cls || 'bg-gray-100 text-gray-600'}`}
+                                        >
+                                            {Object.entries(ESTADO_LIBRO).map(([k, v]) => (
+                                                <option key={k} value={k} className="bg-white text-gray-800">{v.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                ))}
+                            </div>
 
-        return (
-            <div>
+                            {/* Retiro info */}
+                            {c.enLocal > 0 && (
+                                <div className={`p-4 rounded-xl mb-5 border ${c.puedeRetirar ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                                    <p className="font-bold text-sm mb-1">{c.puedeRetirar ? '✅ Puede retirar' : '⚠️ No puede retirar aún'}</p>
+                                    <p className="text-xs text-gray-600">
+                                        {c.enLocal} libro(s) listos ({fmt(c.costoRetiro)}) + {c.reservados} reserv. al 50% ({fmt(c.costoReserva)}) = Mínimo {fmt(c.minRetiro)}
+                                    </p>
+                                    <p className="text-xs text-gray-600">Pagado: {fmt(c.totalPagado)}{!c.puedeRetirar && ` — Falta: ${fmt(c.faltaRetiro)}`}</p>
+                                </div>
+                            )}
+
+                            {/* Pagos */}
+                            <p className="text-sm font-bold text-gray-600 mb-2">Historial de pagos:</p>
+                            {p.pagos.length > 0 ? (
+                                <div className="space-y-1 mb-4">
+                                    {p.pagos.map(pa => (
+                                        <div key={pa.id} className="flex justify-between text-sm bg-white px-3 py-2 rounded-lg border">
+                                            <span className="text-gray-700">{pa.nota} — {pa.fecha}</span>
+                                            <span className="font-bold text-green-600">{fmt(pa.monto)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : <p className="text-sm text-gray-400 mb-4 italic">Sin pagos registrados</p>}
+
+                            {/* Actions */}
+                            <div className="flex gap-2 flex-wrap pt-3 border-t">
+                                <button onClick={() => { resetAgregar(); setMAgregar(p.id); }}
+                                    className="flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium text-sm transition-colors">
+                                    <Plus size={14} /> Agregar Libros
+                                </button>
+                                <button onClick={() => { setRpMonto(''); setRpNota(''); setMPago(p.id); }}
+                                    className="flex items-center gap-1.5 px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 font-medium text-sm transition-colors">
+                                    <DollarSign size={14} /> Registrar Pago
+                                </button>
+                                {c.enLocal > 0 && (
+                                    <button onClick={() => handleWhatsApp(p.telefono, p.libros)}
+                                        className="flex items-center gap-1.5 px-4 py-2 bg-[#25D366]/10 text-[#128C7E] rounded-lg hover:bg-[#25D366]/20 font-medium text-sm transition-colors">
+                                        <MessageCircle size={14} /> Avisar por WhatsApp
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )
+                    }
+                </div>
+            );
+        })}
+        {pedidos.length === 0 && <p className="text-center py-12 text-gray-400 text-lg">No hay pedidos. Creá uno con el botón de arriba.</p>}
+    </div>
+            </div >
+    // === VIEW: ARCHIVO ===
+    const filteredArchivados = archivados.filter(p => {
+        if (!searchQuery) return true;
+        const term = searchQuery.toLowerCase();
+        return (p.cliente && p.cliente.toLowerCase().includes(term)) ||
+            (p.telefono && p.telefono.includes(term));
+    });
                 <div className="flex gap-3 mb-6 justify-between items-center sm:flex-row flex-col">
                     <div className="flex gap-3 w-full sm:w-auto">
                         <span className="text-gray-500 font-medium">Pedidos completados y entregados</span>
@@ -653,13 +642,9 @@ export default function Encargos() {
                         );
                     })}
                 </div>
-            </div>
+            </div >
         );
-    };
-
-    // === TAB: CATÁLOGO ===
-    const CatalogoTab = () => (
-        <div>
+    // === VIEW: CATÁLOGO ===
             <div className="flex justify-between items-center mb-6">
                 <p className="text-gray-500">Configurá los libros por grado con sus precios.</p>
                 <button onClick={() => { setNgNombre(''); setMGrado(true); }} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all">
@@ -727,12 +712,8 @@ export default function Encargos() {
                         </div>
                     );
                 })}
-                {grados.length === 0 && <p className="text-center py-12 text-gray-400 text-lg">No hay grados.</p>}
             </div>
-        </div>
-    );
-    const StockTab = () => (
-        <div>
+    // === VIEW: STOCK ===
             <div className="flex justify-between items-center mb-6">
                 <p className="text-gray-500">Al ingresar stock, se asignan automáticamente a pedidos pendientes.</p>
                 <button onClick={() => setMStock(true)} className="flex items-center gap-2 px-5 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium shadow-sm transition-all"><Package size={20} /> Ingresar Libros</button>
@@ -760,7 +741,7 @@ export default function Encargos() {
                     </tbody>
                 </table>
             </div>
-        </div>
+        </div >
     );
 
     // Collect all known book titles for autocomplete
@@ -799,10 +780,326 @@ export default function Encargos() {
             </div>
 
             {tab === 'gestion' && <GestionLibrosTab />}
-            {tab === 'pedidos' && <PedidosTab />}
-            {tab === 'catalogo' && <CatalogoTab />}
-            {tab === 'stock' && <StockTab />}
-            {tab === 'archivo' && <ArchivoTab />}
+            {tab === 'pedidos' && (
+                <div>
+                    <div className="flex gap-3 mb-6 justify-between items-center sm:flex-row flex-col">
+                        <div className="flex gap-3 w-full sm:w-auto">
+                            <button onClick={() => { resetNuevo(); setMNuevo(true); }} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all text-sm">
+                                <Plus size={18} /> Nuevo Pedido
+                            </button>
+                            <button onClick={() => setMStock(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium shadow-sm transition-all text-sm">
+                                <Package size={16} /> Ingresar Libros
+                            </button>
+                        </div>
+                        <div className="relative w-full sm:w-auto">
+                            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Buscar por cliente o teléfono..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full sm:w-80 pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 shadow-sm text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Orders Table */}
+                    <div className="space-y-3">
+                        {filteredPedidos.length === 0 && (
+                            <div className="text-center py-12 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                                <p className="text-gray-500 font-medium text-lg">No se encontraron pedidos.</p>
+                            </div>
+                        )}
+                        {filteredPedidos.map(p => {
+                            const c = calcPedido(p);
+                            const isExp = expanded === p.id;
+                            return (
+                                <div key={p.id} className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+                                    <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setExpanded(isExp ? null : p.id)}>
+                                        {isExp ? <ChevronDown size={18} className="text-gray-400 shrink-0" /> : <ChevronRight size={18} className="text-gray-400 shrink-0" />}
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-bold text-gray-800 text-lg">{p.cliente}</p>
+                                            <p className="text-xs text-gray-400 flex items-center gap-2"><MessageCircle size={11} /> {p.telefono} · {p.fecha} {p.fecha_tentativa && `· Aprox: ${p.fecha_tentativa}`}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2 flex-wrap justify-end">
+                                            {p.libros.map(l => (
+                                                <span key={l.id} className={`text-xs px-2 py-0.5 rounded-full font-bold ${ESTADO_LIBRO[l.estado].cls}`}>
+                                                    {l.titulo.length > 20 ? l.titulo.slice(0, 18) + '…' : l.titulo}
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <div className="text-right shrink-0 ml-3">
+                                            <p className="font-bold text-green-600">{fmt(c.totalPrecio)}</p>
+                                            {c.pagoDeMas > 0 ? <p className="text-xs text-blue-600 font-bold">💳 Pago a favor: {fmt(c.pagoDeMas)}</p> : c.deuda > 0 ? <p className="text-xs text-red-500 font-bold">Debe: {fmt(c.deuda)}</p> : <p className="text-xs text-green-600 font-bold">✓ Pago completo</p>}
+                                        </div>
+                                    </div>
+
+                                    {isExp && (
+                                        <div className="border-t bg-gray-50/50 p-5">
+                                            {/* Libros */}
+                                            <p className="text-sm font-bold text-gray-600 mb-3">Libros del pedido:</p>
+                                            <div className="space-y-2 mb-5">
+                                                {p.libros.map(l => (
+                                                    <div key={l.id} className="flex items-center justify-between bg-white px-4 py-3 rounded-xl border">
+                                                        <div>
+                                                            <span className="font-medium text-gray-800">{l.titulo}</span>
+                                                            <span className="ml-2 text-green-600 font-bold text-sm">{fmt(l.precio)}</span>
+                                                        </div>
+                                                        <select
+                                                            value={l.estado}
+                                                            onChange={(e) => updateLibroEstado(p.id, l.id, e.target.value)}
+                                                            className={`text-xs rounded-lg px-2 py-1 font-bold outline-none cursor-pointer hover:opacity-80 transition-opacity ${ESTADO_LIBRO[l.estado]?.cls || 'bg-gray-100 text-gray-600'}`}
+                                                        >
+                                                            {Object.entries(ESTADO_LIBRO).map(([k, v]) => (
+                                                                <option key={k} value={k} className="bg-white text-gray-800">{v.label}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Retiro info */}
+                                            {c.enLocal > 0 && (
+                                                <div className={`p-4 rounded-xl mb-5 border ${c.puedeRetirar ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                                                    <p className="font-bold text-sm mb-1">{c.puedeRetirar ? '✅ Puede retirar' : '⚠️ No puede retirar aún'}</p>
+                                                    <p className="text-xs text-gray-600">
+                                                        {c.enLocal} libro(s) listos ({fmt(c.costoRetiro)}) + {c.reservados} reserv. al 50% ({fmt(c.costoReserva)}) = Mínimo {fmt(c.minRetiro)}
+                                                    </p>
+                                                    <p className="text-xs text-gray-600">Pagado: {fmt(c.totalPagado)}{!c.puedeRetirar && ` — Falta: ${fmt(c.faltaRetiro)}`}</p>
+                                                </div>
+                                            )}
+
+                                            {/* Pagos */}
+                                            <p className="text-sm font-bold text-gray-600 mb-2">Historial de pagos:</p>
+                                            {p.pagos.length > 0 ? (
+                                                <div className="space-y-1 mb-4">
+                                                    {p.pagos.map(pa => (
+                                                        <div key={pa.id} className="flex justify-between text-sm bg-white px-3 py-2 rounded-lg border">
+                                                            <span className="text-gray-700">{pa.nota} — {pa.fecha}</span>
+                                                            <span className="font-bold text-green-600">{fmt(pa.monto)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : <p className="text-sm text-gray-400 mb-4 italic">Sin pagos registrados</p>}
+
+                                            {/* Actions */}
+                                            <div className="flex gap-2 flex-wrap pt-3 border-t">
+                                                <button onClick={() => { resetAgregar(); setMAgregar(p.id); }}
+                                                    className="flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium text-sm transition-colors">
+                                                    <Plus size={14} /> Agregar Libros
+                                                </button>
+                                                <button onClick={() => { setRpMonto(''); setRpNota(''); setMPago(p.id); }}
+                                                    className="flex items-center gap-1.5 px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 font-medium text-sm transition-colors">
+                                                    <DollarSign size={14} /> Registrar Pago
+                                                </button>
+                                                {c.enLocal > 0 && (
+                                                    <button onClick={() => handleWhatsApp(p.telefono, p.libros)}
+                                                        className="flex items-center gap-1.5 px-4 py-2 bg-[#25D366]/10 text-[#128C7E] rounded-lg hover:bg-[#25D366]/20 font-medium text-sm transition-colors">
+                                                        <MessageCircle size={14} /> Avisar por WhatsApp
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )
+                                    }
+                                </div>
+                            );
+                        })}
+                        {pedidos.length === 0 && <p className="text-center py-12 text-gray-400 text-lg">No hay pedidos. Creá uno con el botón de arriba.</p>}
+                    </div>
+                </div>
+
+            )}
+            {tab === 'catalogo' && (
+                <div>
+                    <div className="flex justify-between items-center mb-6">
+                        <p className="text-gray-500">Configurá los libros por grado con sus precios.</p>
+                        <button onClick={() => { setNgNombre(''); setMGrado(true); }} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all">
+                            <Plus size={20} /> Nuevo Grado
+                        </button>
+                    </div>
+                    <div className="space-y-4">
+                        {grados.map(g => {
+                            const total = g.libros.reduce((s, l) => s + l.precio, 0);
+                            const isExp = expandedGrado === g.id;
+                            return (
+                                <div key={g.id} className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+                                    <div className="flex justify-between items-center p-5 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setExpandedGrado(isExp ? null : g.id)}>
+                                        <div className="flex items-center gap-3">
+                                            {isExp ? <ChevronDown size={18} className="text-gray-400" /> : <ChevronRight size={18} className="text-gray-400" />}
+                                            {editGradoName === g.id ? (
+                                                <input autoFocus value={editGradoVal} onChange={e => setEditGradoVal(e.target.value)}
+                                                    onBlur={() => { setGrados(grados.map(x => x.id === g.id ? { ...x, nombre: editGradoVal } : x)); setEditGradoName(null); }}
+                                                    onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditGradoName(null); }}
+                                                    onClick={e => e.stopPropagation()}
+                                                    className="text-xl font-bold text-gray-800 border-b-2 border-blue-500 outline-none bg-transparent px-1" />
+                                            ) : <h3 className="text-xl font-bold text-gray-800">{g.nombre}</h3>}
+                                            <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">{g.libros.length} libros</span>
+                                            {total > 0 && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold">{fmt(total)}</span>}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={e => { e.stopPropagation(); setEditGradoVal(g.nombre); setEditGradoName(g.id); }} className="p-2 text-gray-400 hover:text-blue-600 transition-colors"><Edit2 size={16} /></button>
+                                            <button onClick={e => { e.stopPropagation(); setConfirm({ msg: `¿Eliminar "${g.nombre}" y todos sus libros?`, fn: async () => { try { await api.deleteGrado(g.id); reload(); } catch { notify('❌ Error'); } } }); }} className="p-2 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
+                                        </div>
+                                    </div>
+                                    {isExp && (
+                                        <div className="border-t bg-gray-50/50 p-5">
+                                            <div className="space-y-2 mb-4">
+                                                {g.libros.map(l => (
+                                                    <div key={l.id} className="flex justify-between items-center bg-white px-4 py-3 rounded-xl border">
+                                                        <div className="flex-1">
+                                                            <span className="font-medium text-gray-800">{l.titulo}</span>
+                                                            {l.editorial && <span className="text-sm text-gray-500 ml-2">— {l.editorial}</span>}
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            {editPrice?.gradoId === g.id && editPrice?.libroId === l.id ? (
+                                                                <input autoFocus type="number" value={editPriceVal} onChange={e => setEditPriceVal(e.target.value)}
+                                                                    onBlur={() => { setGrados(grados.map(x => x.id === g.id ? { ...x, libros: x.libros.map(b => b.id === l.id ? { ...b, precio: parseFloat(editPriceVal) || 0 } : b) } : x)); setEditPrice(null); }}
+                                                                    onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditPrice(null); }}
+                                                                    className="w-28 px-2 py-1 border-2 border-blue-400 rounded-lg text-right font-bold outline-none" />
+                                                            ) : (
+                                                                <button onClick={() => { setEditPrice({ gradoId: g.id, libroId: l.id }); setEditPriceVal(String(l.precio)); }}
+                                                                    className="font-bold text-green-600 hover:text-green-800 transition-colors flex items-center gap-1">
+                                                                    <DollarSign size={14} />{fmt(l.precio)}
+                                                                </button>
+                                                            )}
+                                                            <button onClick={() => setConfirm({ msg: `¿Eliminar "${l.titulo}"?`, fn: async () => { try { await api.deleteLibroCatalogo(l.id); reload(); } catch { notify('❌ Error'); } } })}
+                                                                className="text-gray-400 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {g.libros.length === 0 && <p className="text-gray-400 text-center py-4">No hay libros.</p>}
+                                            </div>
+                                            <button onClick={() => { setAlcTitulo(''); setAlcEdit(''); setAlcPrecio(''); setMLibroCat(g.id); }}
+                                                className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium transition-colors text-sm">
+                                                <Plus size={16} /> Agregar Libro
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                        {grados.length === 0 && <p className="text-center py-12 text-gray-400 text-lg">No hay grados.</p>}
+                    </div>
+                </div>
+
+            )}
+            {tab === 'stock' && (
+                <div>
+                    <div className="flex justify-between items-center mb-6">
+                        <p className="text-gray-500">Al ingresar stock, se asignan automáticamente a pedidos pendientes.</p>
+                        <button onClick={() => setMStock(true)} className="flex items-center gap-2 px-5 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium shadow-sm transition-all"><Package size={20} /> Ingresar Libros</button>
+                    </div>
+                    <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+                        <table className="w-full text-left">
+                            <thead className="bg-gray-50 border-b"><tr>
+                                <th className="p-5 font-semibold text-gray-600">Título</th>
+                                <th className="p-5 font-semibold text-gray-600">Tipo</th>
+                                <th className="p-5 font-semibold text-gray-600 text-center">Cantidad</th>
+                                <th className="p-5 font-semibold text-gray-600 text-center">Acciones</th>
+                            </tr></thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {stock.map(s => (
+                                    <tr key={s.id} className="hover:bg-gray-50"><td className="p-5 font-bold text-gray-800">{s.titulo}</td>
+                                        <td className="p-5"><span className={`px-3 py-1 rounded-full text-sm font-bold ${s.tipo === 'nuevo' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>{s.tipo === 'nuevo' ? '📗 Nuevo' : '📙 Usado'}</span></td>
+                                        <td className="p-5 text-center"><span className="text-2xl font-black">{s.cantidad}</span></td>
+                                        <td className="p-5 text-center">
+                                            <button onClick={async () => { const s2 = { ...s, cantidad: Math.max(0, s.cantidad - 1) }; try { await api.updateStock(s.id, { titulo: s2.titulo, tipo: s2.tipo, cantidad: s2.cantidad }); setStock(stock.map(x => x.id === s.id ? s2 : x)); } catch { notify('❌ Error'); } }}
+                                                disabled={s.cantidad === 0} className="text-sm px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium disabled:opacity-40 disabled:cursor-not-allowed">-1</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {stock.length === 0 && <tr><td colSpan="4" className="p-12 text-center text-gray-400 text-lg">No hay libros en stock.</td></tr>}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            )}
+            {tab === 'archivo' && (
+                <div>
+                    <div className="flex gap-3 mb-6 justify-between items-center sm:flex-row flex-col">
+                        <div className="flex gap-3 w-full sm:w-auto">
+                            <span className="text-gray-500 font-medium">Pedidos completados y entregados</span>
+                        </div>
+                        <div className="relative w-full sm:w-auto">
+                            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Buscar por cliente o teléfono..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full sm:w-80 pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 shadow-sm text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        {filteredArchivados.length === 0 && (
+                            <div className="text-center py-12 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                                <p className="text-gray-500 font-medium text-lg">No hay pedidos archivados.</p>
+                            </div>
+                        )}
+                        {filteredArchivados.map(p => {
+                            const c = calcPedido(p);
+                            const isExp = expanded === p.id;
+                            return (
+                                <div key={p.id} className="bg-gray-50 rounded-2xl shadow-sm border border-gray-200 overflow-hidden opacity-80">
+                                    <div className="flex items-center gap-4 p-4 cursor-pointer transition-colors" onClick={() => setExpanded(isExp ? null : p.id)}>
+                                        {isExp ? <ChevronDown size={18} className="text-gray-400 shrink-0" /> : <ChevronRight size={18} className="text-gray-400 shrink-0" />}
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-bold text-gray-700 text-lg">{p.cliente}</p>
+                                            <p className="text-xs text-gray-400 flex items-center gap-2"><MessageCircle size={11} /> {p.telefono} · {p.fecha}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2 flex-wrap justify-end">
+                                            {p.libros.map(l => (
+                                                <span key={l.id} className={`text-xs px-2 py-0.5 rounded-full font-bold bg-green-100 text-green-700 border border-green-200`}>
+                                                    {l.titulo.length > 20 ? l.titulo.slice(0, 18) + '…' : l.titulo}
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <div className="text-right shrink-0 ml-3">
+                                            <p className="font-bold text-gray-600">{fmt(c.totalPrecio)}</p>
+                                            <p className="text-xs text-green-600 font-bold">✓ Entregado</p>
+                                        </div>
+                                    </div>
+
+                                    {isExp && (
+                                        <div className="border-t border-gray-200 bg-white p-5">
+                                            {/* Libros */}
+                                            <p className="text-sm font-bold text-gray-600 mb-3">Libros del pedido:</p>
+                                            <div className="space-y-2 mb-5">
+                                                {p.libros.map(l => (
+                                                    <div key={l.id} className="flex items-center justify-between bg-gray-50 px-4 py-3 rounded-xl border border-gray-100">
+                                                        <div>
+                                                            <span className="font-medium text-gray-600">{l.titulo}</span>
+                                                            <span className="ml-2 text-gray-500 font-bold text-sm">{fmt(l.precio)}</span>
+                                                        </div>
+                                                        <span className="text-xs rounded-lg px-2 py-1 font-bold bg-green-100 text-green-700">Entregado</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Pagos */}
+                                            <p className="text-sm font-bold text-gray-600 mb-2">Historial de pagos:</p>
+                                            {p.pagos.length > 0 ? (
+                                                <div className="space-y-1">
+                                                    {p.pagos.map(pa => (
+                                                        <div key={pa.id} className="flex justify-between text-sm bg-gray-50 px-3 py-2 rounded-lg border border-gray-100">
+                                                            <span className="text-gray-600">{pa.nota} — {pa.fecha}</span>
+                                                            <span className="font-bold text-gray-500">{fmt(pa.monto)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : <p className="text-sm text-gray-400 italic">Sin pagos registrados</p>}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* MODAL: Nuevo Pedido */}
             <Modal open={mNuevo} onClose={() => setMNuevo(false)} title="Nuevo Pedido" wide>

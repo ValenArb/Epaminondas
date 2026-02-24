@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { BookOpen, Search, Users, FileText, Book } from 'lucide-react';
-import './index.css';
+
 import Buscador from './components/Buscador';
 import Libreta from './components/Libreta';
 import Fotocopias from './components/Fotocopias';

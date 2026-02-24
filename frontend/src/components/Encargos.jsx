@@ -804,3 +804,4 @@ export default function Encargos() {
             </div>
         );
     }
+}

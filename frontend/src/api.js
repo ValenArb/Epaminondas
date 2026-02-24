@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const BASE = import.meta.env.VITE_API_URL || '';
 
 const json = (r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); };
 const hdr = { 'Content-Type': 'application/json' };

@@ -1,8 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
 import math
+import os
 
 from . import models, schemas
 from .database import engine, get_db
@@ -19,8 +22,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Serve frontend static files
+FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
+if os.path.isdir(FRONTEND_DIR):
+    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIR, "assets")), name="assets")
+
 @app.get("/")
 def read_root():
+    if os.path.isdir(FRONTEND_DIR):
+        return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
     return {"message": "API Kiosco y Librería"}
 
 # ==================== BUSCADOR (Categorías y Productos) ====================
@@ -486,3 +496,15 @@ def ingresar_stock(data: schemas.StockLibroCreate, db: Session = Depends(get_db)
 
     db.commit()
     return {"ok": True, "asignados_a_pedidos": asignados, "al_stock": cantidad_restante}
+
+# Catch-all route for SPA (must be last)
+@app.get("/{path:path}")
+def serve_spa(path: str):
+    # Try to serve static file first
+    file_path = os.path.join(FRONTEND_DIR, path)
+    if os.path.isdir(FRONTEND_DIR) and os.path.isfile(file_path):
+        return FileResponse(file_path)
+    # Otherwise serve index.html for SPA routing
+    if os.path.isdir(FRONTEND_DIR):
+        return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+    return {"message": "Not found"}

@@ -799,10 +799,10 @@ export default function Encargos() {
             </div>
 
             {tab === 'gestion' && <GestionLibrosTab />}
-            {tab === 'pedidos' && <PedidosTab />}
-            {tab === 'catalogo' && <CatalogoTab />}
-            {tab === 'stock' && <StockTab />}
-            {tab === 'archivo' && <ArchivoTab />}
+            {tab === 'pedidos' && PedidosTab()}
+            {tab === 'catalogo' && CatalogoTab()}
+            {tab === 'stock' && StockTab()}
+            {tab === 'archivo' && ArchivoTab()}
 
             {/* MODAL: Nuevo Pedido */}
             <Modal open={mNuevo} onClose={() => setMNuevo(false)} title="Nuevo Pedido" wide>

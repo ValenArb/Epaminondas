@@ -24,14 +24,35 @@ function BookSelector({ grados, selGrado, setSelGrado, selBooks, setSelBooks, ma
         setIsbnLoading(true);
         setIsbnResult(null);
         try {
-            const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
-            const data = await res.json();
-            if (data.items && data.items.length > 0) {
-                const info = data.items[0].volumeInfo;
+            // Try Google Books first
+            const gRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+            const gData = await gRes.json();
+            if (gData.items && gData.items.length > 0) {
+                const info = gData.items[0].volumeInfo;
                 setIsbnResult({ titulo: info.title, autor: info.authors?.join(', ') || '', editorial: info.publisher || '' });
-            } else {
-                setIsbnResult({ error: true });
+                setIsbnLoading(false);
+                return;
             }
+            // Fallback: Open Library
+            const olRes = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
+            if (olRes.ok) {
+                const olData = await olRes.json();
+                if (olData.title) {
+                    // Try to get author
+                    let autor = '';
+                    if (olData.authors && olData.authors.length > 0) {
+                        try {
+                            const aRes = await fetch(`https://openlibrary.org${olData.authors[0].key}.json`);
+                            const aData = await aRes.json();
+                            autor = aData.name || '';
+                        } catch { /* ignore */ }
+                    }
+                    setIsbnResult({ titulo: olData.title, autor, editorial: olData.publishers?.[0] || '' });
+                    setIsbnLoading(false);
+                    return;
+                }
+            }
+            setIsbnResult({ error: true });
         } catch {
             setIsbnResult({ error: true });
         }

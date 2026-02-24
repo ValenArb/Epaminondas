@@ -44,6 +44,7 @@ class Grado(GradoCreate):
 
 class LibroPedidoCreate(BaseModel):
     titulo: str
+    isbn: Optional[str] = None
     precio: float = 0
     estado: str = "faltante"
 
@@ -66,6 +67,7 @@ class PedidoCreate(BaseModel):
     cliente: str
     telefono: Optional[str] = None
     fecha: str
+    fecha_tentativa: Optional[str] = None
     libros: List[LibroPedidoCreate] = []
     sena: float = 0  # initial payment
 
@@ -75,11 +77,13 @@ class Pedido(BaseModel):
     cliente: str
     telefono: Optional[str] = None
     fecha: str
+    fecha_tentativa: Optional[str] = None
     libros: List[LibroPedido] = []
     pagos: List[PagoPedido] = []
 
 class StockLibroCreate(BaseModel):
     titulo: str
+    isbn: Optional[str] = None
     tipo: str = "nuevo"
     cantidad: int = 0
 

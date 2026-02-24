@@ -152,10 +152,16 @@ def list_pedidos(db: Session = Depends(get_db)):
 
 @app.post("/pedidos/", response_model=schemas.Pedido)
 def create_pedido(p: schemas.PedidoCreate, db: Session = Depends(get_db)):
-    pedido = models.Pedido(cliente=p.cliente, telefono=p.telefono, fecha=p.fecha)
+    pedido = models.Pedido(cliente=p.cliente, telefono=p.telefono, fecha=p.fecha, fecha_tentativa=p.fecha_tentativa)
     db.add(pedido); db.flush()
     for l in p.libros:
         db.add(models.LibroPedido(**l.model_dump(), pedido_id=pedido.id))
+        # Ensure 0-stock entry exists for tracking
+        existing_stock = db.query(models.StockLibro).filter(
+            models.StockLibro.titulo == l.titulo, models.StockLibro.tipo == "nuevo"
+        ).first()
+        if not existing_stock:
+            db.add(models.StockLibro(titulo=l.titulo, isbn=l.isbn, tipo="nuevo", cantidad=0))
     if p.sena > 0:
         db.add(models.PagoPedido(pedido_id=pedido.id, monto=p.sena, fecha=p.fecha, nota="Seña inicial"))
     db.commit(); db.refresh(pedido)
@@ -173,7 +179,14 @@ def add_libro_pedido(pedido_id: int, libro: schemas.LibroPedidoCreate, db: Sessi
     pedido = db.query(models.Pedido).get(pedido_id)
     if not pedido: raise HTTPException(404)
     obj = models.LibroPedido(**libro.model_dump(), pedido_id=pedido_id)
-    db.add(obj); db.commit(); db.refresh(obj)
+    db.add(obj)
+    # Ensure 0-stock entry exists for tracking
+    existing_stock = db.query(models.StockLibro).filter(
+        models.StockLibro.titulo == libro.titulo, models.StockLibro.tipo == "nuevo"
+    ).first()
+    if not existing_stock:
+        db.add(models.StockLibro(titulo=libro.titulo, isbn=libro.isbn, tipo="nuevo", cantidad=0))
+    db.commit(); db.refresh(obj)
     return obj
 
 @app.put("/libros-pedido/{id}/estado")
@@ -346,6 +359,20 @@ def add_transaccion(cliente_id: int, t: schemas.TransaccionCreate, db: Session =
     return obj
 
 # ==================== ENCARGOS — Ingresar Stock (asigna a pedidos) ====================
+
+@app.post("/stock/marcar-pedido/")
+def marcar_pedido(data: dict, db: Session = Depends(get_db)):
+    titulo = data.get("titulo")
+    libros_faltantes = db.query(models.LibroPedido).filter(
+        models.LibroPedido.titulo == titulo,
+        models.LibroPedido.estado == "faltante"
+    ).all()
+    count = 0
+    for lp in libros_faltantes:
+        lp.estado = "pedido"
+        count += 1
+    db.commit()
+    return {"ok": True, "count": count}
 
 @app.post("/stock/ingresar/")
 def ingresar_stock(data: schemas.StockLibroCreate, db: Session = Depends(get_db)):

@@ -36,6 +36,7 @@ const api = {
     getStock: () => fetch(`${BASE}/stock/`).then(json),
     createStock: (d) => fetch(`${BASE}/stock/`, { method: 'POST', headers: hdr, body: JSON.stringify(d) }).then(json),
     updateStock: (id, d) => fetch(`${BASE}/stock/${id}`, { method: 'PUT', headers: hdr, body: JSON.stringify(d) }).then(json),
+    marcarComoPedido: (titulo) => fetch(`${BASE}/stock/marcar-pedido/`, { method: 'POST', headers: hdr, body: JSON.stringify({ titulo }) }).then(json),
     ingresarStock: (d) => fetch(`${BASE}/stock/ingresar/`, { method: 'POST', headers: hdr, body: JSON.stringify(d) }).then(json),
 
     // === FOTOCOPIAS ===

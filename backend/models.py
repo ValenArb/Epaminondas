@@ -44,6 +44,7 @@ class Pedido(Base):
     cliente = Column(String, index=True)
     telefono = Column(String, nullable=True)
     fecha = Column(String)
+    fecha_tentativa = Column(String, nullable=True)
     libros = relationship("LibroPedido", back_populates="pedido", cascade="all, delete-orphan")
     pagos = relationship("PagoPedido", back_populates="pedido", cascade="all, delete-orphan")
 
@@ -52,6 +53,7 @@ class LibroPedido(Base):
     id = Column(Integer, primary_key=True, index=True)
     pedido_id = Column(Integer, ForeignKey("pedidos.id"))
     titulo = Column(String)
+    isbn = Column(String, nullable=True)
     precio = Column(Float, default=0)
     estado = Column(String, default="faltante")  # faltante, pedido, en_local, entregado
     pedido = relationship("Pedido", back_populates="libros")
@@ -69,6 +71,7 @@ class StockLibro(Base):
     __tablename__ = "stock_libros"
     id = Column(Integer, primary_key=True, index=True)
     titulo = Column(String, index=True)
+    isbn = Column(String, nullable=True)
     tipo = Column(String, default="nuevo")  # nuevo, usado
     cantidad = Column(Integer, default=0)
 

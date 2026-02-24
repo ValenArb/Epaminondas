@@ -1,63 +1,101 @@
 import { useState } from 'react';
+import { Users, Plus, Package, Clock, Check } from 'lucide-react';
 
-// Mock data
-const MOCK_TRABAJOS = [
-    { id: 1, solicitante: 'Escuela Nro 5', descripcion_material: '50 copias Examen Matemática', telefono: '5491112345678', estado_actual: 'pendiente' },
-    { id: 2, solicitante: 'María profe', descripcion_material: 'Apuntes Historia 3er Año', telefono: '', estado_actual: 'listo' },
-    { id: 3, solicitante: 'Juan (Facu)', descripcion_material: 'Resumen Biología', telefono: '5491187654321', estado_actual: 'entregado' },
+const MOCK_FOTOCOPIAS = [
+    { id: 1, solicitante: 'Prof. Gómez', material: 'Módulo Historia 3er Año (20 copias)', estado: 'pendiente' },
+    { id: 2, solicitante: 'Martina (Alumna)', material: 'Apunte Biología', estado: 'listo' },
+    { id: 3, solicitante: 'Colegio San José', material: 'Exámenes de Matemática', estado: 'entregado' }
 ];
 
 export default function Fotocopias() {
-    const [trabajos, setTrabajos] = useState(MOCK_TRABAJOS);
+    const [fotocopias, setFotocopias] = useState(MOCK_FOTOCOPIAS);
 
-    const moveTrabajo = (id, nuevoEstado) => {
-        setTrabajos(prev => prev.map(t => t.id === id ? { ...t, estado_actual: nuevoEstado } : t));
+    const updateStatus = (id, newStatus) => {
+        setFotocopias(fotocopias.map(p => p.id === id ? { ...p, estado: newStatus } : p));
     };
 
-    const columnas = [
-        { id: 'pendiente', titulo: 'Pendiente de Hacer', color: 'var(--warning)', bg: 'var(--warning-bg)' },
-        { id: 'listo', titulo: 'Listo / Esperando', color: 'var(--accent-primary)', bg: 'rgba(59, 130, 246, 0.1)' },
-        { id: 'entregado', titulo: 'Entregados', color: 'var(--success)', bg: 'var(--success-bg)' },
-    ];
+    const handleNew = () => {
+        const solicitante = prompt("¿Quién solicita/retira el trabajo?");
+        if (!solicitante) return;
+        const material = prompt("Descripción del material (Ej. Módulo 3er Año):");
+        if (!material) return;
+        setFotocopias([...fotocopias, { id: Date.now(), solicitante, material, estado: 'pendiente' }]);
+    };
+
+    const Column = ({ title, status, icon: Icon, colorClass, bgClass }) => {
+        const tasks = fotocopias.filter(p => p.estado === status);
+        return (
+            <div className={`rounded-2xl p-5 border-t-8 ${colorClass} ${bgClass} flex flex-col h-full shadow-sm`}>
+                <div className="flex justify-between items-center mb-6 px-1">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2 text-lg">
+                        <Icon size={20} className="text-gray-600" /> {title}
+                    </h3>
+                    <span className="bg-white px-3 py-1 rounded-full text-sm font-bold text-gray-500 shadow-sm">{tasks.length}</span>
+                </div>
+
+                <div className="space-y-4 flex-1 overflow-y-auto pr-2">
+                    {tasks.map(job => (
+                        <div key={job.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                            <p className="font-bold text-gray-800 text-lg mb-2 leading-tight">{job.material}</p>
+                            <p className="text-sm text-gray-500 font-medium flex items-center gap-2 mb-4">
+                                <Users size={14} /> Para: {job.solicitante}
+                            </p>
+
+                            <div className="pt-3 border-t border-gray-50">
+                                {status === 'pendiente' && (
+                                    <button
+                                        onClick={() => updateStatus(job.id, 'listo')}
+                                        className="w-full bg-blue-50 text-blue-700 py-2.5 rounded-lg text-sm font-bold hover:bg-blue-100 transition-colors"
+                                    >
+                                        ¡Terminado! (Pasar a mostrador)
+                                    </button>
+                                )}
+                                {status === 'listo' && (
+                                    <button
+                                        onClick={() => updateStatus(job.id, 'entregado')}
+                                        className="w-full bg-green-50 text-green-700 py-2.5 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors"
+                                    >
+                                        Marcar como Entregado
+                                    </button>
+                                )}
+                                {status === 'entregado' && (
+                                    <div className="w-full flex justify-between items-center text-gray-400 text-sm py-1 font-medium">
+                                        <span>✓ Trabajo Finalizado</span>
+                                        <button
+                                            onClick={() => setFotocopias(fotocopias.filter(p => p.id !== job.id))}
+                                            className="hover:text-red-500 px-2"
+                                            title="Archivar/Eliminar"
+                                        >
+                                            Archivar
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                    {tasks.length === 0 && (
+                        <div className="text-center py-10 text-gray-400 font-medium">
+                            No hay trabajos aquí
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className="animate-fade-in">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <h2>Tablero de Fotocopias</h2>
-                <button className="btn-primary">+ Nuevo Trabajo</button>
+        <div className="p-8 h-full flex flex-col">
+            <div className="flex justify-between items-center mb-8">
+                <h2 className="text-3xl font-bold text-gray-800">Tablero de Fotocopias</h2>
+                <button onClick={handleNew} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all">
+                    <Plus size={20} /> Nuevo Trabajo
+                </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', minHeight: '600px' }}>
-                {columnas.map(col => (
-                    <div key={col.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', padding: '1rem', background: 'rgba(30,41,59,0.5)' }}>
-                        <h3 style={{ borderBottom: `2px solid ${col.color}`, paddingBottom: '0.5rem', marginBottom: '1.5rem' }}>
-                            {col.titulo} ({trabajos.filter(t => t.estado_actual === col.id).length})
-                        </h3>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1 }}>
-                            {trabajos.filter(t => t.estado_actual === col.id).map(trabajo => (
-                                <div key={trabajo.id} className="glass-card" style={{ padding: '1rem', background: 'var(--bg-secondary)', borderLeft: `4px solid ${col.color}` }}>
-                                    <h4 style={{ margin: '0 0 0.5rem 0' }}>{trabajo.solicitante}</h4>
-                                    <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>{trabajo.descripcion_material}</p>
-
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
-                                        {col.id !== 'pendiente' ? (
-                                            <button onClick={() => moveTrabajo(trabajo.id, 'pendiente')} style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>← Pendiente</button>
-                                        ) : <span />}
-
-                                        {col.id === 'pendiente' && (
-                                            <button onClick={() => moveTrabajo(trabajo.id, 'listo')} style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>Marcar Listo →</button>
-                                        )}
-
-                                        {col.id === 'listo' && (
-                                            <button onClick={() => moveTrabajo(trabajo.id, 'entregado')} style={{ color: 'var(--success)', fontWeight: 600 }}>Entregar →</button>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                ))}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-0">
+                <Column title="Pendientes de Hacer" status="pendiente" icon={Clock} colorClass="border-orange-400" bgClass="bg-orange-50/50" />
+                <Column title="Listos (En mostrador)" status="listo" icon={Package} colorClass="border-blue-400" bgClass="bg-blue-50/50" />
+                <Column title="Entregados" status="entregado" icon={Check} colorClass="border-green-400" bgClass="bg-green-50/50" />
             </div>
         </div>
     );

@@ -1,191 +1,161 @@
 import { useState } from 'react';
+import { Users, Plus, Calculator, ArrowLeft } from 'lucide-react';
 
-// Mock data
 const MOCK_CLIENTES = [
-    { id: 1, nombre: 'Juan Pérez', telefono: '5491123456789', saldo_total: 1500 }, // debe 1500
-    { id: 2, nombre: 'María Gómez', telefono: '5491198765432', saldo_total: -500 }, // le sobran 500
-    { id: 3, nombre: 'Carlos López', telefono: '', saldo_total: 0 },
+    {
+        id: 1, nombre: 'María (Mamá de Juan)', telefono: '1123456789', saldo_total: 1200,
+        transacciones: [{ id: 1, fecha: '2023-10-24', descripcion: '2 cartulinas y plasticola', monto: 1200, tipo: 'cargo' }]
+    },
+    {
+        id: 2, nombre: 'Prof. Carlos (Geografía)', telefono: '1198765432', saldo_total: -500,
+        transacciones: [
+            { id: 1, fecha: '2023-10-20', descripcion: 'Resmas', monto: 5000, tipo: 'cargo' },
+            { id: 2, fecha: '2023-10-22', descripcion: 'Abono en efectivo', monto: 5500, tipo: 'pago' }
+        ]
+    },
 ];
-
-const MOCK_TRANSACCIONES = {
-    1: [
-        { id: 101, fecha: '2023-10-25', detalle: 'Cuaderno y biromes', tipo_operacion: 'cargo', monto: 2000 },
-        { id: 102, fecha: '2023-10-26', detalle: 'Pago a cuenta', tipo_operacion: 'abono', monto: 500 },
-    ],
-    2: [
-        { id: 103, fecha: '2023-10-20', detalle: 'Fotocopias', tipo_operacion: 'cargo', monto: 500 },
-        { id: 104, fecha: '2023-10-21', detalle: 'Pago adelantado', tipo_operacion: 'abono', monto: 1000 },
-    ]
-};
 
 export default function Libreta() {
     const [clientes, setClientes] = useState(MOCK_CLIENTES);
-    const [transacciones, setTransacciones] = useState(MOCK_TRANSACCIONES);
-    const [selectedCliente, setSelectedCliente] = useState(null);
+    const [selectedClient, setSelectedClient] = useState(null);
 
-    // Form para transacciones
-    const [montoForm, setMontoForm] = useState('');
-    const [detalleForm, setDetalleForm] = useState('');
+    const formatMoney = (amount) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amount);
 
-    const handleTransaction = (tipo) => {
-        const monto = parseFloat(montoForm);
-        if (isNaN(monto) || monto <= 0 || !detalleForm) return alert('Ingrese monto y detalle válidos');
+    const handleAddTransaction = (type) => {
+        let desc = 'Abono en efectivo';
+        if (type === 'cargo') {
+            desc = prompt('¿Qué se llevó el cliente? (Detalle corto):');
+            if (!desc) return;
+        }
 
-        // Update local state for mock UI
-        const nuevaTx = {
+        const amountStr = prompt(type === 'cargo' ? 'Monto total a sumar al fiado:' : 'Monto que entregó (abono):');
+        if (!amountStr || isNaN(amountStr)) {
+            if (amountStr) alert("Monto inválido. Ingrese solo números.");
+            return;
+        }
+
+        const amount = parseFloat(amountStr);
+        const newTransaction = {
             id: Date.now(),
-            fecha: new Date().toISOString().split('T')[0],
-            detalle: detalleForm,
-            tipo_operacion: tipo,
-            monto: monto
+            fecha: new Date().toLocaleDateString('es-AR'),
+            descripcion: desc,
+            monto: amount,
+            tipo: type
         };
 
-        setTransacciones(prev => ({
-            ...prev,
-            [selectedCliente.id]: [nuevaTx, ...(prev[selectedCliente.id] || [])]
-        }));
-
-        setClientes(prev => prev.map(c => {
-            if (c.id === selectedCliente.id) {
-                const nuevoSaldo = tipo === 'cargo' ? c.saldo_total + monto : c.saldo_total - monto;
-                setSelectedCliente({ ...c, saldo_total: nuevoSaldo });
-                return { ...c, saldo_total: nuevoSaldo };
+        const updatedClients = clientes.map(c => {
+            if (c.id === selectedClient.id) {
+                const newBalance = type === 'cargo' ? c.saldo_total + amount : c.saldo_total - amount;
+                return { ...c, saldo_total: newBalance, transacciones: [newTransaction, ...c.transacciones] };
             }
             return c;
-        }));
+        });
 
-        setMontoForm('');
-        setDetalleForm('');
+        setClientes(updatedClients);
+        setSelectedClient(updatedClients.find(c => c.id === selectedClient.id));
     };
 
-    if (selectedCliente) {
-        const isDebt = selectedCliente.saldo_total > 0;
-        const isCredit = selectedCliente.saldo_total < 0;
+    if (selectedClient) {
+        const isDebit = selectedClient.saldo_total > 0;
 
         return (
-            <div className="animate-fade-in glass-card" style={{ maxWidth: '800px', margin: '0 auto' }}>
-                <button onClick={() => setSelectedCliente(null)} style={{ color: 'var(--accent-primary)', marginBottom: '1rem', fontWeight: 600 }}>
-                    ← Volver al Directorio
+            <div className="p-8">
+                <button onClick={() => setSelectedClient(null)} className="flex items-center gap-2 text-gray-500 mb-6 hover:text-gray-900 transition-colors font-medium">
+                    <ArrowLeft size={20} /> Volver al Directorio
                 </button>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '2rem', marginBottom: '2rem' }}>
+                <div className="bg-white p-8 rounded-2xl shadow-sm border mb-8 flex justify-between items-center">
                     <div>
-                        <h2 style={{ fontSize: '2rem', margin: 0 }}>{selectedCliente.nombre}</h2>
-                        <p style={{ color: 'var(--text-secondary)' }}>{selectedCliente.telefono || 'Sin teléfono'}</p>
+                        <h2 className="text-3xl font-bold text-gray-800 mb-2">{selectedClient.nombre}</h2>
+                        <p className="text-gray-500 text-lg flex items-center gap-2">
+                            <Users size={18} /> {selectedClient.telefono}
+                        </p>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                        <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Saldo Actual</p>
-                        <h3 style={{
-                            fontSize: '2.5rem',
-                            margin: 0,
-                            color: isDebt ? 'var(--danger)' : isCredit ? 'var(--success)' : 'var(--text-primary)'
-                        }}>
-                            {isCredit ? '-' : ''}${Math.abs(selectedCliente.saldo_total).toLocaleString('es-AR')}
-                        </h3>
-                        <span className={`badge ${isDebt ? 'badge-danger' : isCredit ? 'badge-success' : ''}`}>
-                            {isDebt ? 'Debe' : isCredit ? 'A Favor' : 'Al Día'}
-                        </span>
+                    <div className="text-right bg-gray-50 px-8 py-4 rounded-xl border">
+                        <p className="text-sm text-gray-500 uppercase tracking-widest font-bold mb-1">
+                            {isDebit ? 'DEUDA TOTAL' : 'SALDO A FAVOR'}
+                        </p>
+                        <p className={`text-5xl font-bold ${isDebit ? 'text-red-500' : 'text-green-500'}`}>
+                            {formatMoney(Math.abs(selectedClient.saldo_total))}
+                        </p>
                     </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-                    <div>
-                        <h3>Nueva Transacción</h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <input
-                                type="text"
-                                className="input-base"
-                                placeholder="Detalle (ej. Fotocopias)"
-                                value={detalleForm}
-                                onChange={e => setDetalleForm(e.target.value)}
-                            />
-                            <div style={{ position: 'relative' }}>
-                                <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }}>$</span>
-                                <input
-                                    type="number"
-                                    className="input-base"
-                                    placeholder="Monto"
-                                    style={{ paddingLeft: '2rem' }}
-                                    value={montoForm}
-                                    onChange={e => setMontoForm(e.target.value)}
-                                />
-                            </div>
-                            <div style={{ display: 'flex', gap: '1rem' }}>
-                                <button
-                                    onClick={() => handleTransaction('cargo')}
-                                    style={{ flex: 1, padding: '1.5rem', background: 'var(--danger-bg)', color: 'var(--danger)', borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: '1.2rem', transition: 'all 0.2s' }}
-                                    onMouseOver={(e) => e.target.style.transform = 'scale(1.02)'}
-                                    onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
-                                >
-                                    DEJA A DEBER (+)
-                                </button>
-                                <button
-                                    onClick={() => handleTransaction('abono')}
-                                    style={{ flex: 1, padding: '1.5rem', background: 'var(--success-bg)', color: 'var(--success)', borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: '1.2rem', transition: 'all 0.2s' }}
-                                    onMouseOver={(e) => e.target.style.transform = 'scale(1.02)'}
-                                    onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
-                                >
-                                    PAGA DEUDA (-)
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                <div className="flex gap-6 mb-10">
+                    <button
+                        onClick={() => handleAddTransaction('cargo')}
+                        className="flex-1 bg-red-50 text-red-600 border border-red-200 py-6 rounded-2xl font-bold text-xl hover:bg-red-100 hover:shadow-md transition-all flex justify-center items-center gap-3"
+                    >
+                        <Plus size={28} /> Anotar Fiado (Se llevó)
+                    </button>
+                    <button
+                        onClick={() => handleAddTransaction('pago')}
+                        className="flex-1 bg-green-50 text-green-600 border border-green-200 py-6 rounded-2xl font-bold text-xl hover:bg-green-100 hover:shadow-md transition-all flex justify-center items-center gap-3"
+                    >
+                        <Calculator size={28} /> Registrar Pago (Abonó)
+                    </button>
+                </div>
 
-                    <div>
-                        <h3>Historial ({transacciones[selectedCliente.id]?.length || 0})</h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '400px', overflowY: 'auto' }}>
-                            {(transacciones[selectedCliente.id] || []).map(tx => (
-                                <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
-                                    <div>
-                                        <p style={{ margin: 0, fontWeight: 500 }}>{tx.detalle}</p>
-                                        <small style={{ color: 'var(--text-secondary)' }}>{tx.fecha}</small>
-                                    </div>
-                                    <div style={{ fontWeight: 600, color: tx.tipo_operacion === 'cargo' ? 'var(--danger)' : 'var(--success)' }}>
-                                        {tx.tipo_operacion === 'cargo' ? '+' : '-'}${tx.monto}
-                                    </div>
-                                </div>
+                <h3 className="text-xl font-bold text-gray-700 mb-4 px-2">Historial de Movimientos</h3>
+                <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+                    <table className="w-full text-left">
+                        <thead className="bg-gray-50 border-b">
+                            <tr>
+                                <th className="p-5 font-semibold text-gray-600">Fecha</th>
+                                <th className="p-5 font-semibold text-gray-600">Detalle</th>
+                                <th className="p-5 font-semibold text-right text-gray-600">Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {selectedClient.transacciones.map(t => (
+                                <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="p-5 text-gray-500 whitespace-nowrap">{t.fecha}</td>
+                                    <td className="p-5 font-medium text-gray-800">{t.descripcion}</td>
+                                    <td className={`p-5 text-right font-bold text-lg ${t.tipo === 'cargo' ? 'text-red-500' : 'text-green-500'}`}>
+                                        {t.tipo === 'cargo' ? '+ ' : '- '}{formatMoney(t.monto)}
+                                    </td>
+                                </tr>
                             ))}
-                            {(!transacciones[selectedCliente.id] || transacciones[selectedCliente.id].length === 0) && (
-                                <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem' }}>No hay transacciones</p>
+                            {selectedClient.transacciones.length === 0 && (
+                                <tr><td colSpan="3" className="p-10 text-center text-gray-400">Sin historial de movimientos.</td></tr>
                             )}
-                        </div>
-                    </div>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="animate-fade-in">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <h2>Directorio de Clientes (Fiados)</h2>
-                <button className="btn-primary">+ Nuevo Cliente</button>
+        <div className="p-8">
+            <div className="flex justify-between items-center mb-8">
+                <h2 className="text-3xl font-bold text-gray-800">Libreta de Fiados</h2>
+                <button className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all">
+                    <Plus size={20} /> Nuevo Cliente
+                </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                {clientes.map(c => {
-                    const isDebt = c.saldo_total > 0;
-                    const isCredit = c.saldo_total < 0;
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {clientes.map(client => {
+                    const isDebit = client.saldo_total > 0;
                     return (
                         <div
-                            key={c.id}
-                            className="glass-card"
-                            style={{ cursor: 'pointer', borderTop: `4px solid ${isDebt ? 'var(--danger)' : isCredit ? 'var(--success)' : 'transparent'}` }}
-                            onClick={() => setSelectedCliente(c)}
+                            key={client.id}
+                            onClick={() => setSelectedClient(client)}
+                            className="bg-white p-6 rounded-2xl border shadow-sm hover:shadow-lg hover:-translate-y-1 cursor-pointer transition-all flex flex-col justify-between"
                         >
-                            <h3 style={{ margin: 0, fontSize: '1.25rem' }}>{c.nombre}</h3>
-                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>{c.telefono || 'Sin contacto'}</p>
-
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                <span className={`badge ${isDebt ? 'badge-danger' : isCredit ? 'badge-success' : ''}`}>
-                                    {isDebt ? 'Debe' : isCredit ? 'Saldo a favor' : 'Al día'}
-                                </span>
-                                <span style={{
-                                    fontSize: '1.5rem',
-                                    fontWeight: 700,
-                                    color: isDebt ? 'var(--danger)' : isCredit ? 'var(--success)' : 'var(--text-primary)'
-                                }}>
-                                    ${Math.abs(c.saldo_total).toLocaleString('es-AR')}
+                            <div>
+                                <div className="flex justify-between items-start mb-2">
+                                    <h3 className="font-bold text-xl text-gray-800 leading-tight">{client.nombre}</h3>
+                                </div>
+                                <p className="text-gray-500 mb-6 flex items-center gap-2 text-sm">
+                                    <Users size={14} /> {client.telefono}
+                                </p>
+                            </div>
+                            <div className="flex justify-between items-end pt-4 border-t border-gray-100">
+                                <span className="text-sm text-gray-500 font-medium uppercase">{isDebit ? 'Deuda' : 'A favor'}</span>
+                                <span className={`text-2xl font-black tracking-tight ${isDebit ? 'text-red-500' : 'text-green-500'}`}>
+                                    {formatMoney(Math.abs(client.saldo_total))}
                                 </span>
                             </div>
                         </div>

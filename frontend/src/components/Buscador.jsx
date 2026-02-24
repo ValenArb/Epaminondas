@@ -1,127 +1,146 @@
 import { useState, useMemo } from 'react';
+import { Search, Settings, Edit2 } from 'lucide-react';
 
-// Mock data while backend is down
 const MOCK_CATEGORIAS = [
-  { id: 1, nombre: 'Literatura', margen_porcentaje: 40 },
-  { id: 2, nombre: 'Fantasía', margen_porcentaje: 45 },
-  { id: 3, nombre: 'Librería', margen_porcentaje: 50 },
+  { id: 1, nombre: 'Librería Escolar', margen_porcentaje: 45 },
+  { id: 2, nombre: 'Golosinas', margen_porcentaje: 30 },
+  { id: 3, nombre: 'Regalería', margen_porcentaje: 60 },
+  { id: 4, nombre: 'Fotocopias', margen_porcentaje: 100 },
 ];
 
 const MOCK_PRODUCTOS = [
-  { id: 1, isbn: '978-84-376-0494-7', descripcion: 'Cien años de soledad', costo_base: 5000, categoria_id: 1 },
-  { id: 2, isbn: '978-84-450-7033-3', descripcion: 'El Señor de los Anillos', costo_base: 8000, categoria_id: 2 },
-  { id: 3, isbn: '7791234567890', descripcion: 'Cuaderno A4 Rayado', costo_base: 1200, categoria_id: 3 },
-  { id: 4, isbn: '7790987654321', descripcion: 'Bolígrafo Azul', costo_base: 300, categoria_id: 3 },
+  { id: 1, isbn: '978987456123', descripcion: 'Cuaderno Rivadavia Tapa Dura 50h', costo_base: 1500, categoria_id: 1 },
+  { id: 2, isbn: '779123456789', descripcion: 'Lapicera Bic Azul', costo_base: 200, categoria_id: 1 },
+  { id: 3, isbn: '779987654321', descripcion: 'Alfajor Jorgito Chocolate', costo_base: 350, categoria_id: 2 },
+  { id: 4, isbn: '978111222333', descripcion: 'Taza de Cerámica Día de la Madre', costo_base: 4000, categoria_id: 3 },
 ];
 
 export default function Buscador() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [showCategories, setShowCategories] = useState(false);
-  
-  // States for local edits
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+
   const [categorias, setCategorias] = useState(MOCK_CATEGORIAS);
   const [productos, setProductos] = useState(MOCK_PRODUCTOS);
 
-  // Derived state: Calculates real-time prices ensuring case-insensitive search
+  const formatMoney = (amount) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amount);
+
   const filteredProducts = useMemo(() => {
     const term = searchTerm.toLowerCase();
     return productos.map(p => {
       const cat = categorias.find(c => c.id === p.categoria_id);
       const margin = cat ? cat.margen_porcentaje : 0;
-      const publicPrice = Math.ceil(p.costo_base + (p.costo_base * (margin / 100)));
-      return { ...p, categoria_nombre: cat?.nombre || 'Sin categoría', precio_publico: publicPrice };
-    }).filter(p => 
-      (p.isbn && p.isbn.toLowerCase().includes(term)) || 
+      const publicPrice = Math.ceil(p.costo_base * (1 + margin / 100));
+      return { ...p, categoria_nombre: cat?.nombre || 'N/A', precio_publico: publicPrice };
+    }).filter(p =>
+      (p.isbn && p.isbn.toLowerCase().includes(term)) ||
       (p.descripcion && p.descripcion.toLowerCase().includes(term))
     );
   }, [searchTerm, productos, categorias]);
 
+  const handleUpdateCost = (id) => {
+    const newCost = prompt("Ingresá el nuevo costo base (sin el % de ganancia):");
+    if (newCost && !isNaN(newCost)) {
+      setProductos(productos.map(p => p.id === id ? { ...p, costo_base: parseFloat(newCost) } : p));
+    } else if (newCost) {
+      alert("Por favor, ingresá un número válido.");
+    }
+  };
+
   return (
-    <div className="animate-fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h2>Buscador de Precios</h2>
-        <button 
-          className="btn-primary"
-          onClick={() => setShowCategories(!showCategories)}
+    <div className="p-8">
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-3xl font-bold text-gray-800">Buscador de Precios</h2>
+        <button
+          onClick={() => setShowCategoryModal(!showCategoryModal)}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors font-medium"
         >
-          {showCategories ? 'Ocultar Categorías' : 'Gestor de Categorías'}
+          <Settings size={18} /> Gestionar Categorías y %
         </button>
       </div>
 
-      <div className="glass-card" style={{ marginBottom: '2rem' }}>
-        <input 
-          type="text" 
-          className="input-base" 
-          placeholder="Escanear código de barras o buscar por descripción..." 
+      {showCategoryModal && (
+        <div className="mb-8 p-5 bg-white rounded-xl shadow-md border-l-4 border-purple-500">
+          <h3 className="font-bold mb-4 text-purple-800 text-lg">Porcentajes de Ganancia</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {categorias.map(cat => (
+              <div key={cat.id} className="bg-gray-50 p-4 rounded-lg border flex justify-between items-center">
+                <span className="font-medium text-gray-700">{cat.nombre}</span>
+                <div className="flex items-center gap-3">
+                  <span className="font-bold text-xl text-purple-600">{cat.margen_porcentaje}%</span>
+                  <button
+                    onClick={() => {
+                      const newMargin = prompt(`Nuevo porcentaje para ${cat.nombre}:`, cat.margen_porcentaje);
+                      if (newMargin && !isNaN(newMargin)) {
+                        setCategorias(categorias.map(c => c.id === cat.id ? { ...c, margen_porcentaje: parseFloat(newMargin) } : c));
+                      }
+                    }}
+                    className="text-gray-400 hover:text-purple-600 transition-colors"
+                  >
+                    <Edit2 size={18} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-sm text-gray-500 mt-4 italic">
+            * Si modificás el porcentaje, todos los productos de esa categoría actualizarán su precio al instante.
+          </p>
+        </div>
+      )}
+
+      <div className="relative mb-8 shadow-sm">
+        <Search className="absolute left-5 top-5 text-gray-400" size={28} />
+        <input
+          type="text"
+          placeholder="Pistolear ISBN o escribir descripción del producto..."
+          className="w-full pl-16 pr-6 py-5 text-xl border-2 border-gray-200 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-50 focus:outline-none transition-all"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           autoFocus
-          style={{ fontSize: '1.25rem', padding: '1rem' }}
         />
       </div>
 
-      <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
-        <div className="glass-card" style={{ flex: 1 }}>
-          <h3>Resultados ({filteredProducts.length})</h3>
-          <table className="premium-table">
-            <thead>
-              <tr>
-                <th>ISBN/Código</th>
-                <th>Descripción</th>
-                <th>Categoría</th>
-                <th>Precio Público</th>
+      <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+        <table className="w-full text-left border-collapse">
+          <thead className="bg-gray-50 text-gray-600 border-b">
+            <tr>
+              <th className="p-5 font-semibold">ISBN / Código</th>
+              <th className="p-5 font-semibold">Descripción</th>
+              <th className="p-5 font-semibold">Categoría</th>
+              <th className="p-5 font-semibold text-right">Precio Público</th>
+              <th className="p-5 font-semibold text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {filteredProducts.map(product => (
+              <tr key={product.id} className="hover:bg-blue-50/50 transition-colors group">
+                <td className="p-5 text-gray-500 font-mono text-sm">{product.isbn}</td>
+                <td className="p-5 font-medium text-gray-800 text-lg">{product.descripcion}</td>
+                <td className="p-5 text-sm text-gray-500">
+                  <span className="bg-gray-100 px-3 py-1 rounded-full">{product.categoria_nombre}</span>
+                </td>
+                <td className="p-5 text-right font-bold text-2xl text-green-600">
+                  {formatMoney(product.precio_publico)}
+                </td>
+                <td className="p-5 text-center">
+                  <button
+                    onClick={() => handleUpdateCost(product.id)}
+                    className="text-sm px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-300 shadow-sm transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+                  >
+                    Cambiar Costo
+                  </button>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {filteredProducts.map(p => (
-                <tr key={p.id}>
-                  <td style={{ color: 'var(--text-secondary)' }}>{p.isbn}</td>
-                  <td style={{ fontWeight: 500 }}>{p.descripcion}</td>
-                  <td><span className="badge" style={{ background: 'rgba(255,255,255,0.1)' }}>{p.categoria_nombre}</span></td>
-                  <td style={{ color: 'var(--success)', fontWeight: 700, fontSize: '1.1rem' }}>
-                    ${p.precio_publico.toLocaleString('es-AR')}
-                  </td>
-                </tr>
-              ))}
-              {filteredProducts.length === 0 && (
-                <tr>
-                  <td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
-                    No se encontraron productos
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {showCategories && (
-          <div className="glass-card animate-fade-in" style={{ width: '350px' }}>
-            <h3>Márgenes por Categoría</h3>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
-              Los cambios de porcentaje actualizan el precio al instante.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {categorias.map(cat => (
-                <div key={cat.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-tertiary)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
-                  <span style={{ fontWeight: 500 }}>{cat.nombre}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <input 
-                      type="number" 
-                      className="input-base" 
-                      style={{ width: '80px', textAlign: 'right', padding: '0.5rem' }} 
-                      value={cat.margen_porcentaje}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
-                        setCategorias(prev => prev.map(c => c.id === cat.id ? { ...c, margen_porcentaje: val } : c));
-                      }}
-                    />
-                    <span style={{ color: 'var(--text-secondary)' }}>%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+            ))}
+            {filteredProducts.length === 0 && (
+              <tr>
+                <td colSpan="5" className="p-12 text-center text-gray-400 text-lg">
+                  No hay resultados para "{searchTerm}"
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

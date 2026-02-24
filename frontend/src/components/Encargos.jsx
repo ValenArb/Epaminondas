@@ -49,7 +49,14 @@ function BookSelector({ grados, selGrado, setSelGrado, selBooks, setSelBooks, ma
     return (
         <div>
             <label className="block text-sm font-semibold text-gray-600 mb-2">Seleccionar Grado</label>
-            <select value={selGrado || ''} onChange={e => { setSelGrado(Number(e.target.value) || null); setSelBooks([]); }}
+            <select value={selGrado || ''} onChange={e => {
+                const newGrado = Number(e.target.value) || null;
+                // Only clear catalog books, keep manually added (suelto) ones
+                const catalogTitles = new Set();
+                grados.forEach(g => g.libros.forEach(l => catalogTitles.add(l.titulo)));
+                setSelBooks(selBooks.filter(b => !catalogTitles.has(b.titulo)));
+                setSelGrado(newGrado);
+            }}
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:border-blue-500 outline-none">
                 <option value="">-- Elegir grado --</option>
                 {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}

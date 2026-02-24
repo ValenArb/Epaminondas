@@ -23,38 +23,40 @@ function BookSelector({ grados, selGrado, setSelGrado, selBooks, setSelBooks, ma
         if (!isbn || isbn.length < 10) return;
         setIsbnLoading(true);
         setIsbnResult(null);
+        const clean = isbn.replace(/[^0-9X]/gi, '');
         try {
-            // Try Google Books first
-            const gRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
-            const gData = await gRes.json();
-            if (gData.items && gData.items.length > 0) {
-                const info = gData.items[0].volumeInfo;
+            // 1) Google Books with isbn: prefix
+            const g1 = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${clean}`);
+            const g1d = await g1.json();
+            if (g1d.items?.length > 0) {
+                const info = g1d.items[0].volumeInfo;
                 setIsbnResult({ titulo: info.title, autor: info.authors?.join(', ') || '', editorial: info.publisher || '' });
-                setIsbnLoading(false);
-                return;
+                setIsbnLoading(false); return;
             }
-            // Fallback: Open Library
-            const olRes = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
-            if (olRes.ok) {
-                const olData = await olRes.json();
-                if (olData.title) {
-                    // Try to get author
-                    let autor = '';
-                    if (olData.authors && olData.authors.length > 0) {
-                        try {
-                            const aRes = await fetch(`https://openlibrary.org${olData.authors[0].key}.json`);
-                            const aData = await aRes.json();
-                            autor = aData.name || '';
-                        } catch { /* ignore */ }
-                    }
-                    setIsbnResult({ titulo: olData.title, autor, editorial: olData.publishers?.[0] || '' });
-                    setIsbnLoading(false);
-                    return;
+            // 2) Google Books plain search (catches some that isbn: misses)
+            const g2 = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${clean}`);
+            const g2d = await g2.json();
+            if (g2d.items?.length > 0) {
+                const info = g2d.items[0].volumeInfo;
+                const isbns = info.industryIdentifiers?.map(i => i.identifier) || [];
+                if (isbns.some(i => i.includes(clean) || clean.includes(i))) {
+                    setIsbnResult({ titulo: info.title, autor: info.authors?.join(', ') || '', editorial: info.publisher || '' });
+                    setIsbnLoading(false); return;
                 }
             }
-            setIsbnResult({ error: true });
+            // 3) Open Library search API (more reliable than direct /isbn/ endpoint)
+            const olRes = await fetch(`https://openlibrary.org/search.json?isbn=${clean}&limit=1`);
+            if (olRes.ok) {
+                const olData = await olRes.json();
+                if (olData.docs?.length > 0) {
+                    const doc = olData.docs[0];
+                    setIsbnResult({ titulo: doc.title, autor: doc.author_name?.join(', ') || '', editorial: doc.publisher?.[0] || '' });
+                    setIsbnLoading(false); return;
+                }
+            }
+            setIsbnResult({ error: true, isbn: clean });
         } catch {
-            setIsbnResult({ error: true });
+            setIsbnResult({ error: true, isbn: clean });
         }
         setIsbnLoading(false);
     };
@@ -115,7 +117,15 @@ function BookSelector({ grados, selGrado, setSelGrado, selBooks, setSelBooks, ma
                         <button onClick={applyIsbnResult} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">Usar</button>
                     </div>
                 )}
-                {isbnResult?.error && <p className="text-sm text-red-500 mb-3">No se encontró el ISBN. Podés escribir el título manualmente.</p>}
+                {isbnResult?.error && (
+                    <div className="text-sm text-red-500 mb-3">
+                        No se encontró en Google/OpenLibrary.
+                        <a href={`https://www.google.com/search?q=isbn+${isbnResult.isbn}`} target="_blank" rel="noopener noreferrer" className="ml-1 text-purple-600 underline hover:text-purple-800">Buscar en Google</a>
+                        <span className="mx-1">|</span>
+                        <a href={`https://www.casassaylorenzo.com/Papel/${isbnResult.isbn}`} target="_blank" rel="noopener noreferrer" className="text-purple-600 underline hover:text-purple-800">Casassa y Lorenzo</a>
+                        <p className="mt-1 text-gray-500">Podés escribir el título manualmente abajo.</p>
+                    </div>
+                )}
             </div>
 
             {/* Manual book with autocomplete */}

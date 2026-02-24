@@ -79,7 +79,7 @@ function calcPedido(p) {
 }
 
 export default function Encargos() {
-    const [tab, setTab] = useState('pedidos');
+    const [tab, setTab] = useState('gestion');
     const [grados, setGrados] = useState(INIT_GRADOS);
     const [pedidos, setPedidos] = useState(INIT_PEDIDOS);
     const [stock, setStock] = useState(INIT_STOCK);
@@ -130,15 +130,17 @@ export default function Encargos() {
 
     const notify = (m) => { setNotif(m); setTimeout(() => setNotif(null), 5000); };
 
-    // Dashboard counts
-    const dash = useMemo(() => {
-        let faltante = 0, pedido = 0, enLocal = 0;
+    // Aggregate books across all orders for Kanban
+    const bookKanban = useMemo(() => {
+        const agg = {};
         pedidos.forEach(p => p.libros.forEach(l => {
-            if (l.estado === 'faltante') faltante++;
-            if (l.estado === 'pedido') pedido++;
-            if (l.estado === 'en_local') enLocal++;
+            if (l.estado === 'entregado') return;
+            const key = `${l.titulo}|${l.estado}`;
+            if (!agg[key]) agg[key] = { titulo: l.titulo, estado: l.estado, cantidad: 0, clientes: [] };
+            agg[key].cantidad++;
+            if (!agg[key].clientes.includes(p.cliente)) agg[key].clientes.push(p.cliente);
         }));
-        return { faltante, pedido, enLocal };
+        return Object.values(agg);
     }, [pedidos]);
 
     const getPrecio = (titulo) => {
@@ -227,23 +229,57 @@ export default function Encargos() {
         window.open(`https://wa.me/549${clean}?text=${msg}`, '_blank');
     };
 
+    // === TAB: GESTIÓN DE LIBROS (Kanban) ===
+    const GestionLibrosTab = () => {
+        const columns = [
+            { key: 'faltante', title: 'Faltan Pedir', borderCls: 'border-red-400', bgCls: 'bg-red-50/50', badgeCls: 'bg-red-100 text-red-700', icon: '🔴' },
+            { key: 'pedido', title: 'Pedidos (esperan)', borderCls: 'border-yellow-400', bgCls: 'bg-yellow-50/50', badgeCls: 'bg-yellow-100 text-yellow-700', icon: '🟡' },
+            { key: 'en_local', title: 'En Local (avisar)', borderCls: 'border-blue-400', bgCls: 'bg-blue-50/50', badgeCls: 'bg-blue-100 text-blue-700', icon: '🔵' },
+        ];
+        return (
+            <div>
+                <div className="flex gap-3 mb-6">
+                    <button onClick={() => setMStock(true)} className="flex items-center gap-2 px-5 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium shadow-sm transition-all">
+                        <Package size={18} /> Ingresar Libros
+                    </button>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {columns.map(col => {
+                        const items = bookKanban.filter(b => b.estado === col.key);
+                        const totalUnits = items.reduce((s, b) => s + b.cantidad, 0);
+                        return (
+                            <div key={col.key} className={`rounded-2xl p-5 border-t-8 ${col.borderCls} ${col.bgCls} shadow-sm flex flex-col`}>
+                                <div className="flex justify-between items-center mb-5 px-1">
+                                    <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">{col.icon} {col.title}</h3>
+                                    <span className="bg-white px-3 py-1 rounded-full text-sm font-bold text-gray-500 shadow-sm">{totalUnits}</span>
+                                </div>
+                                <div className="space-y-3 flex-1 overflow-y-auto pr-1">
+                                    {items.map((b, i) => (
+                                        <div key={i} className="bg-white p-4 rounded-xl shadow-sm border hover:shadow-md transition-shadow">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <p className="font-bold text-gray-800">{b.titulo}</p>
+                                                <span className={`text-sm px-2.5 py-1 rounded-full font-black ${col.badgeCls}`}>×{b.cantidad}</span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-1">
+                                                {b.clientes.map((c, j) => (
+                                                    <span key={j} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{c}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {items.length === 0 && <p className="text-center py-10 text-gray-400 font-medium">Vacío</p>}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
     // === TAB: PEDIDOS ===
     const PedidosTab = () => (
         <div>
-            {/* Dashboard */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-                {[
-                    { label: 'Faltan Pedir', count: dash.faltante, cls: 'bg-red-50 border-red-200 text-red-700', icon: '🔴' },
-                    { label: 'Pedidos (esperan)', count: dash.pedido, cls: 'bg-yellow-50 border-yellow-200 text-yellow-700', icon: '🟡' },
-                    { label: 'En Local (avisar)', count: dash.enLocal, cls: 'bg-blue-50 border-blue-200 text-blue-700', icon: '🔵' },
-                ].map(c => (
-                    <div key={c.label} className={`${c.cls} border rounded-xl p-4 flex items-center gap-3`}>
-                        <span className="text-2xl">{c.icon}</span>
-                        <div><p className="text-3xl font-black">{c.count}</p><p className="text-sm font-medium">{c.label}</p></div>
-                    </div>
-                ))}
-            </div>
-
             <div className="flex gap-3 mb-6">
                 <button onClick={() => { resetNuevo(); setMNuevo(true); }} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all">
                     <Plus size={20} /> Nuevo Pedido
@@ -492,6 +528,7 @@ export default function Encargos() {
 
     // === TABS ===
     const tabs = [
+        { key: 'gestion', label: 'Gestión de Libros', icon: ShoppingCart },
         { key: 'pedidos', label: 'Pedidos', icon: BookOpen },
         { key: 'catalogo', label: 'Catálogo por Grado', icon: Settings },
         { key: 'stock', label: 'Stock de Libros', icon: Package },
@@ -514,6 +551,7 @@ export default function Encargos() {
                 ))}
             </div>
 
+            {tab === 'gestion' && <GestionLibrosTab />}
             {tab === 'pedidos' && <PedidosTab />}
             {tab === 'catalogo' && <CatalogoTab />}
             {tab === 'stock' && <StockTab />}

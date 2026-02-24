@@ -1,10 +1,128 @@
-import { useState, useMemo } from 'react';
-import { Plus, MessageCircle, Settings, Package, BookOpen, Trash2, ChevronDown, ChevronRight, Edit2, DollarSign, AlertTriangle, CheckCircle2, Clock, ShoppingCart, X } from 'lucide-react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Plus, MessageCircle, Settings, Package, BookOpen, Trash2, ChevronDown, ChevronRight, Edit2, DollarSign, AlertTriangle, CheckCircle2, Clock, ShoppingCart, X, Search, Loader2 } from 'lucide-react';
 import { Modal, ConfirmDialog, Notification } from './Modal';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
 const uid = () => Date.now() + Math.random();
 const today = () => new Date().toISOString().split('T')[0];
+
+// === BOOK SELECTOR (extracted to avoid re-render focus loss) ===
+function BookSelector({ grados, selGrado, setSelGrado, selBooks, setSelBooks, manual, setManual, knownTitles }) {
+    const [isbnSearch, setIsbnSearch] = useState('');
+    const [isbnLoading, setIsbnLoading] = useState(false);
+    const [isbnResult, setIsbnResult] = useState(null);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+
+    const suggestions = useMemo(() => {
+        if (!manual.titulo || manual.titulo.length < 2) return [];
+        const term = manual.titulo.toLowerCase();
+        return knownTitles.filter(t => t.toLowerCase().includes(term)).slice(0, 5);
+    }, [manual.titulo, knownTitles]);
+
+    const searchISBN = async (isbn) => {
+        if (!isbn || isbn.length < 10) return;
+        setIsbnLoading(true);
+        setIsbnResult(null);
+        try {
+            const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+            const data = await res.json();
+            if (data.items && data.items.length > 0) {
+                const info = data.items[0].volumeInfo;
+                setIsbnResult({ titulo: info.title, autor: info.authors?.join(', ') || '', editorial: info.publisher || '' });
+            } else {
+                setIsbnResult({ error: true });
+            }
+        } catch {
+            setIsbnResult({ error: true });
+        }
+        setIsbnLoading(false);
+    };
+
+    const applyIsbnResult = () => {
+        if (isbnResult && !isbnResult.error) {
+            setManual({ ...manual, titulo: isbnResult.titulo });
+            setIsbnResult(null);
+            setIsbnSearch('');
+        }
+    };
+
+    return (
+        <div>
+            <label className="block text-sm font-semibold text-gray-600 mb-2">Seleccionar Grado</label>
+            <select value={selGrado || ''} onChange={e => { setSelGrado(Number(e.target.value) || null); setSelBooks([]); }}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:border-blue-500 outline-none">
+                <option value="">-- Elegir grado --</option>
+                {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+            </select>
+            {selGrado && grados.find(g => g.id === selGrado)?.libros.map(l => (
+                <label key={l.id} className={`flex items-center justify-between gap-3 p-3 mt-2 rounded-xl border cursor-pointer transition-all ${selBooks.some(b => b.titulo === l.titulo) ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                    <div className="flex items-center gap-3">
+                        <input type="checkbox" checked={selBooks.some(b => b.titulo === l.titulo)}
+                            onChange={e => { if (e.target.checked) setSelBooks([...selBooks, { titulo: l.titulo, precio: l.precio }]); else setSelBooks(selBooks.filter(b => b.titulo !== l.titulo)); }}
+                            className="w-5 h-5 rounded text-blue-600" />
+                        <span className="font-medium text-gray-800">{l.titulo}</span>
+                    </div>
+                    <span className="font-bold text-green-600 text-sm">{fmt(l.precio)}</span>
+                </label>
+            ))}
+
+            {/* ISBN Search */}
+            <div className="mt-4 pt-4 border-t">
+                <p className="text-sm font-semibold text-gray-600 mb-2">Buscar por ISBN:</p>
+                <div className="flex gap-2 mb-3">
+                    <input placeholder="978..." value={isbnSearch} onChange={e => setIsbnSearch(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') searchISBN(isbnSearch); }}
+                        className="flex-1 px-3 py-2 border rounded-lg text-sm outline-none focus:border-blue-500" />
+                    <button onClick={() => searchISBN(isbnSearch)} disabled={isbnLoading || isbnSearch.length < 10}
+                        className="px-3 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium disabled:bg-gray-300 hover:bg-purple-700 flex items-center gap-1">
+                        {isbnLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />} Buscar
+                    </button>
+                </div>
+                {isbnResult && !isbnResult.error && (
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-3 flex justify-between items-center">
+                        <div>
+                            <p className="font-bold text-green-800">{isbnResult.titulo}</p>
+                            <p className="text-xs text-green-600">{isbnResult.autor} {isbnResult.editorial && `— ${isbnResult.editorial}`}</p>
+                        </div>
+                        <button onClick={applyIsbnResult} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">Usar</button>
+                    </div>
+                )}
+                {isbnResult?.error && <p className="text-sm text-red-500 mb-3">No se encontró el ISBN. Podés escribir el título manualmente.</p>}
+            </div>
+
+            {/* Manual book with autocomplete */}
+            <div className="mt-3">
+                <p className="text-sm font-semibold text-gray-600 mb-2">Agregar libro suelto:</p>
+                <div className="relative">
+                    <input placeholder="Título del libro" value={manual.titulo}
+                        onChange={e => { setManual({ ...manual, titulo: e.target.value }); setShowSuggestions(true); }}
+                        onFocus={() => setShowSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                        className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-blue-500" />
+                    {showSuggestions && suggestions.length > 0 && (
+                        <div className="absolute z-10 w-full bg-white border rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto">
+                            {suggestions.map((s, i) => (
+                                <button key={i} type="button" className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm text-gray-800 border-b last:border-0"
+                                    onMouseDown={() => { setManual({ ...manual, titulo: s }); setShowSuggestions(false); }}>
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <div className="flex gap-2 mt-2">
+                    <input placeholder="Precio" type="number" value={manual.precio}
+                        onChange={e => setManual({ ...manual, precio: e.target.value })}
+                        className="w-28 px-3 py-2 border rounded-lg text-sm outline-none focus:border-blue-500" />
+                    <button onClick={() => { if (manual.titulo) { setSelBooks([...selBooks, { titulo: manual.titulo, precio: parseFloat(manual.precio) || 0 }]); setManual({ titulo: '', precio: '' }); } }}
+                        disabled={!manual.titulo} className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:bg-gray-300 hover:bg-blue-700 flex items-center justify-center gap-1">
+                        <Plus size={14} /> Agregar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 const INIT_GRADOS = [
     {
@@ -79,7 +197,7 @@ function calcPedido(p) {
 }
 
 export default function Encargos() {
-    const [tab, setTab] = useState('gestion');
+    const [tab, setTab] = useState('pedidos');
     const [grados, setGrados] = useState(INIT_GRADOS);
     const [pedidos, setPedidos] = useState(INIT_PEDIDOS);
     const [stock, setStock] = useState(INIT_STOCK);
@@ -493,43 +611,19 @@ export default function Encargos() {
         </div>
     );
 
-    // Book selector shared between Nuevo Pedido and Agregar Libros
-    const BookSelector = ({ selGrado, setSelGrado, selBooks, setSelBooks, manual, setManual }) => (
-        <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-2">Seleccionar Grado</label>
-            <select value={selGrado || ''} onChange={e => { setSelGrado(Number(e.target.value) || null); setSelBooks([]); }}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:border-blue-500 outline-none">
-                <option value="">-- Elegir grado --</option>
-                {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
-            </select>
-            {selGrado && grados.find(g => g.id === selGrado)?.libros.map(l => (
-                <label key={l.id} className={`flex items-center justify-between gap-3 p-3 mt-2 rounded-xl border cursor-pointer transition-all ${selBooks.some(b => b.titulo === l.titulo) ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
-                    <div className="flex items-center gap-3">
-                        <input type="checkbox" checked={selBooks.some(b => b.titulo === l.titulo)}
-                            onChange={e => { if (e.target.checked) setSelBooks([...selBooks, { titulo: l.titulo, precio: l.precio }]); else setSelBooks(selBooks.filter(b => b.titulo !== l.titulo)); }}
-                            className="w-5 h-5 rounded text-blue-600" />
-                        <span className="font-medium text-gray-800">{l.titulo}</span>
-                    </div>
-                    <span className="font-bold text-green-600 text-sm">{fmt(l.precio)}</span>
-                </label>
-            ))}
-            {/* Manual book */}
-            <div className="mt-4 pt-4 border-t">
-                <p className="text-sm font-semibold text-gray-600 mb-2">Agregar libro suelto:</p>
-                <div className="flex gap-2">
-                    <input placeholder="Título" value={manual.titulo} onChange={e => setManual({ ...manual, titulo: e.target.value })} className="flex-1 px-3 py-2 border rounded-lg text-sm outline-none focus:border-blue-500" />
-                    <input placeholder="Precio" type="number" value={manual.precio} onChange={e => setManual({ ...manual, precio: e.target.value })} className="w-24 px-3 py-2 border rounded-lg text-sm outline-none focus:border-blue-500" />
-                    <button onClick={() => { if (manual.titulo) { setSelBooks([...selBooks, { titulo: manual.titulo, precio: parseFloat(manual.precio) || 0 }]); setManual({ titulo: '', precio: '' }); } }}
-                        disabled={!manual.titulo} className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:bg-gray-300 hover:bg-blue-700"><Plus size={14} /></button>
-                </div>
-            </div>
-        </div>
-    );
+    // Collect all known book titles for autocomplete
+    const knownTitles = useMemo(() => {
+        const set = new Set();
+        grados.forEach(g => g.libros.forEach(l => set.add(l.titulo)));
+        stock.forEach(s => set.add(s.titulo));
+        pedidos.forEach(p => p.libros.forEach(l => set.add(l.titulo)));
+        return Array.from(set);
+    }, [grados, stock, pedidos]);
 
     // === TABS ===
     const tabs = [
-        { key: 'gestion', label: 'Gestión de Libros', icon: ShoppingCart },
         { key: 'pedidos', label: 'Pedidos', icon: BookOpen },
+        { key: 'gestion', label: 'Gestión de Libros', icon: ShoppingCart },
         { key: 'catalogo', label: 'Catálogo por Grado', icon: Settings },
         { key: 'stock', label: 'Stock de Libros', icon: Package },
     ];
@@ -559,7 +653,7 @@ export default function Encargos() {
             {/* MODAL: Nuevo Pedido */}
             <Modal open={mNuevo} onClose={() => setMNuevo(false)} title="Nuevo Pedido" wide>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <BookSelector selGrado={npGrado} setSelGrado={setNpGrado} selBooks={npBooks} setSelBooks={setNpBooks} manual={npManual} setManual={setNpManual} />
+                    <BookSelector grados={grados} knownTitles={knownTitles} selGrado={npGrado} setSelGrado={setNpGrado} selBooks={npBooks} setSelBooks={setNpBooks} manual={npManual} setManual={setNpManual} />
                     <div className="space-y-4">
                         <div><label className="block text-sm font-semibold text-gray-600 mb-1">Cliente *</label>
                             <input value={npClient} onChange={e => setNpClient(e.target.value)} placeholder="Ej. María" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500" /></div>
@@ -586,7 +680,7 @@ export default function Encargos() {
 
             {/* MODAL: Agregar Libros a pedido existente */}
             <Modal open={!!mAgregar} onClose={() => setMAgregar(null)} title={`Agregar Libros — ${pedidoAgregar?.cliente}`} wide>
-                <BookSelector selGrado={alGrado} setSelGrado={setAlGrado} selBooks={alBooks} setSelBooks={setAlBooks} manual={alManual} setManual={setAlManual} />
+                <BookSelector grados={grados} knownTitles={knownTitles} selGrado={alGrado} setSelGrado={setAlGrado} selBooks={alBooks} setSelBooks={setAlBooks} manual={alManual} setManual={setAlManual} />
                 {alBooks.length > 0 && (
                     <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 mt-4">
                         {alBooks.map((b, i) => <div key={i} className="flex justify-between text-sm text-blue-700"><span>• {b.titulo}</span><span className="font-bold">{fmt(b.precio)}</span></div>)}

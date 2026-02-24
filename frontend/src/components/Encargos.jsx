@@ -392,6 +392,18 @@ export default function Encargos() {
                                                     Marcar como Pedido
                                                 </button>
                                             )}
+                                            {(col.key === 'faltante' || col.key === 'pedido') && (
+                                                <button onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    try {
+                                                        const res = await api.marcarComoLocal(b.titulo);
+                                                        notify(`✅ Se movieron ${res.count} libro(s) a En Local`);
+                                                        reload();
+                                                    } catch { notify('❌ Error al cambiar estado'); }
+                                                }} className="w-full mt-2 py-1.5 text-xs font-bold text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors border border-blue-300">
+                                                    Marcar como "En local"
+                                                </button>
+                                            )}
                                         </div>
                                     ))}
                                     {items.length === 0 && <p className="text-center py-10 text-gray-400 font-medium">Vacío</p>}

@@ -374,6 +374,20 @@ def marcar_pedido(data: dict, db: Session = Depends(get_db)):
     db.commit()
     return {"ok": True, "count": count}
 
+@app.post("/stock/marcar-local/")
+def marcar_local(data: dict, db: Session = Depends(get_db)):
+    titulo = data.get("titulo")
+    libros_pedidos = db.query(models.LibroPedido).filter(
+        models.LibroPedido.titulo == titulo,
+        models.LibroPedido.estado.in_(["faltante", "pedido"])
+    ).all()
+    count = 0
+    for lp in libros_pedidos:
+        lp.estado = "en_local"
+        count += 1
+    db.commit()
+    return {"ok": True, "count": count}
+
 @app.post("/stock/ingresar/")
 def ingresar_stock(data: schemas.StockLibroCreate, db: Session = Depends(get_db)):
     """Ingresar stock y asignar automáticamente a pedidos pendientes (faltante)."""

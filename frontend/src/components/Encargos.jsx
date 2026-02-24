@@ -478,9 +478,15 @@ export default function Encargos() {
                                                         <span className="font-medium text-gray-800">{l.titulo}</span>
                                                         <span className="ml-2 text-green-600 font-bold text-sm">{fmt(l.precio)}</span>
                                                     </div>
-                                                    <span className={`text-xs rounded-lg px-3 py-1 font-bold ${ESTADO_LIBRO[l.estado]?.cls || 'bg-gray-100 text-gray-600'}`}>
-                                                        {ESTADO_LIBRO[l.estado]?.label || l.estado}
-                                                    </span>
+                                                    <select
+                                                        value={l.estado}
+                                                        onChange={(e) => updateLibroEstado(p.id, l.id, e.target.value)}
+                                                        className={`text-xs rounded-lg px-2 py-1 font-bold outline-none cursor-pointer hover:opacity-80 transition-opacity ${ESTADO_LIBRO[l.estado]?.cls || 'bg-gray-100 text-gray-600'}`}
+                                                    >
+                                                        {Object.entries(ESTADO_LIBRO).map(([k, v]) => (
+                                                            <option key={k} value={k} className="bg-white text-gray-800">{v.label}</option>
+                                                        ))}
+                                                    </select>
                                                 </div>
                                             ))}
                                         </div>

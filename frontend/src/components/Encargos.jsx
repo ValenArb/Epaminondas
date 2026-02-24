@@ -44,7 +44,7 @@ function BookSelector({ grados, selGrado, setSelGrado, selBooks, setSelBooks, ma
                     setIsbnLoading(false); return;
                 }
             }
-            // 3) Open Library search API (more reliable than direct /isbn/ endpoint)
+            // 3) Open Library search API
             const olRes = await fetch(`https://openlibrary.org/search.json?isbn=${clean}&limit=1`);
             if (olRes.ok) {
                 const olData = await olRes.json();
@@ -54,6 +54,22 @@ function BookSelector({ grados, selGrado, setSelGrado, selBooks, setSelBooks, ma
                     setIsbnLoading(false); return;
                 }
             }
+            // 4) Scrape isbnsearch.org via CORS proxy
+            try {
+                const scRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(`https://isbnsearch.org/isbn/${clean}`)}`);
+                if (scRes.ok) {
+                    const html = await scRes.text();
+                    const h1Match = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+                    const authMatch = html.match(/Authors?:\s*([^<\n]+)/i);
+                    if (h1Match && h1Match[1] && !h1Match[1].includes('Not Found') && !h1Match[1].includes('ISBN Search')) {
+                        const decode = (s) => { const d = document.createElement('div'); d.innerHTML = s; return d.textContent; };
+                        const titulo = decode(h1Match[1].trim());
+                        const autor = authMatch ? decode(authMatch[1].replace(/;/g, ',').trim()) : '';
+                        setIsbnResult({ titulo, autor, editorial: '', fuente: 'ISBNsearch.org' });
+                        setIsbnLoading(false); return;
+                    }
+                }
+            } catch { /* ignore */ }
             setIsbnResult({ error: true, isbn: clean });
         } catch {
             setIsbnResult({ error: true, isbn: clean });
@@ -119,10 +135,12 @@ function BookSelector({ grados, selGrado, setSelGrado, selBooks, setSelBooks, ma
                 )}
                 {isbnResult?.error && (
                     <div className="text-sm text-red-500 mb-3">
-                        No se encontró en Google/OpenLibrary.
-                        <a href={`https://www.google.com/search?q=isbn+${isbnResult.isbn}`} target="_blank" rel="noopener noreferrer" className="ml-1 text-purple-600 underline hover:text-purple-800">Buscar en Google</a>
-                        <span className="mx-1">|</span>
-                        <a href={`https://www.casassaylorenzo.com/Papel/${isbnResult.isbn}`} target="_blank" rel="noopener noreferrer" className="text-purple-600 underline hover:text-purple-800">Casassa y Lorenzo</a>
+                        No se encontró en las bases de datos. Buscalo acá:
+                        <div className="flex flex-wrap gap-2 mt-1">
+                            <a href={`https://isbnsearch.org/isbn/${isbnResult.isbn}`} target="_blank" rel="noopener noreferrer" className="px-2 py-1 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-medium no-underline">ISBNsearch.org</a>
+                            <a href={`https://www.casassaylorenzo.com/Papel/${isbnResult.isbn}`} target="_blank" rel="noopener noreferrer" className="px-2 py-1 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-medium no-underline">Casassa y Lorenzo</a>
+                            <a href={`https://www.google.com/search?q=isbn+${isbnResult.isbn}`} target="_blank" rel="noopener noreferrer" className="px-2 py-1 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-medium no-underline">Google</a>
+                        </div>
                         <p className="mt-1 text-gray-500">Podés escribir el título manualmente abajo.</p>
                     </div>
                 )}

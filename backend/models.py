@@ -3,6 +3,12 @@ from sqlalchemy.orm import relationship
 from .database import Base
 from datetime import datetime
 
+class Usuario(Base):
+    __tablename__ = "usuarios"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+
 # ===== BUSCADOR (Precios) =====
 
 class Categoria(Base):

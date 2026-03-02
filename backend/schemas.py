@@ -1,6 +1,10 @@
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
 # ===== BUSCADOR =====
 
 class CategoriaCreate(BaseModel):

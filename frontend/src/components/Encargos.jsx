@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Plus, MessageCircle, Settings, Package, BookOpen, Trash2, ChevronDown, ChevronRight, Edit2, DollarSign, AlertTriangle, CheckCircle2, Clock, ShoppingCart, X, Search, Loader2, Archive } from 'lucide-react';
 import { Modal, ConfirmDialog, Notification } from './Modal';
 import api from '../api';
+import { matchSearch } from '../utils';
+
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
 const uid = () => Date.now() + Math.random();
 const today = () => new Date().toISOString().split('T')[0];
@@ -429,10 +431,7 @@ export default function Encargos() {
         const filteredPedidos = pedidos.filter(p => {
             // Text search
             if (searchQuery) {
-                const term = searchQuery.toLowerCase();
-                const matchesText = (p.cliente && p.cliente.toLowerCase().includes(term)) ||
-                    (p.telefono && p.telefono.includes(term));
-                if (!matchesText) return false;
+                if (!matchSearch(searchQuery, p.cliente, p.telefono)) return false;
             }
             // Filter by estado
             if (filterEstado !== 'todos') {
@@ -602,9 +601,7 @@ export default function Encargos() {
     const ArchivoTab = () => {
         const filteredArchivados = archivados.filter(p => {
             if (!searchQuery) return true;
-            const term = searchQuery.toLowerCase();
-            return (p.cliente && p.cliente.toLowerCase().includes(term)) ||
-                (p.telefono && p.telefono.includes(term));
+            return matchSearch(searchQuery, p.cliente, p.telefono);
         });
 
         return (
@@ -770,7 +767,7 @@ export default function Encargos() {
     const StockTab = () => {
         const filteredStock = stock.filter(s => {
             if (!searchQuery) return true;
-            return s.titulo.toLowerCase().includes(searchQuery.toLowerCase());
+            return matchSearch(searchQuery, s.titulo);
         });
 
         return (

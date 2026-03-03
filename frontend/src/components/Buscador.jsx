@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Search, Settings, Edit2, Plus, Trash2, Package } from 'lucide-react';
 import { Modal, ConfirmDialog, Notification } from './Modal';
 import api from '../api';
+import { matchSearch } from '../utils';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
 
@@ -48,15 +49,12 @@ export default function Buscador() {
   const notify = (m) => { setNotif(m); setTimeout(() => setNotif(null), 4000); };
 
   const filteredProducts = useMemo(() => {
-    const term = searchTerm.toLowerCase();
     return productos.map(p => {
       const cat = categorias.find(c => c.id === p.categoria_id);
       const margin = cat ? cat.margen_porcentaje : 0;
       const publicPrice = Math.ceil(p.costo_base * (1 + margin / 100));
       return { ...p, categoria_nombre: cat?.nombre || 'N/A', precio_publico: publicPrice };
-    }).filter(p =>
-      !term || (p.isbn && p.isbn.toLowerCase().includes(term)) || (p.descripcion && p.descripcion.toLowerCase().includes(term))
-    );
+    }).filter(p => matchSearch(searchTerm, p.isbn, p.descripcion));
   }, [searchTerm, productos, categorias]);
 
   const crearCategoria = async () => {

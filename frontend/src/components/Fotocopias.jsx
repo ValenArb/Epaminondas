@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Users, Plus, Package, Clock, Check, Settings, ChevronDown, ChevronRight, Edit2, Trash2, Printer, DollarSign } from 'lucide-react';
+import { Users, Plus, Package, Clock, Check, Settings, ChevronDown, ChevronRight, Edit2, Trash2, Printer, DollarSign, Search } from 'lucide-react';
 import { Modal, ConfirmDialog, Notification } from './Modal';
 import api from '../api';
+import { matchSearch } from '../utils';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
 const today = () => new Date().toISOString().split('T')[0];
@@ -11,6 +12,7 @@ export default function Fotocopias() {
     const [anios, setAnios] = useState([]);
     const [fotos, setFotos] = useState([]);
     const [notif, setNotif] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const reload = async () => {
         try {
@@ -115,7 +117,7 @@ export default function Fotocopias() {
 
     // Kanban Column
     const Column = ({ title, status, icon: Icon, colorClass, bgClass }) => {
-        const tasks = fotos.filter(f => f.estado === status);
+        const tasks = fotos.filter(f => f.estado === status && matchSearch(searchQuery, f.solicitante, f.material));
         return (
             <div className={`rounded-2xl p-5 border-t-8 ${colorClass} ${bgClass} flex flex-col h-full shadow-sm`}>
                 <div className="flex justify-between items-center mb-6 px-1">
@@ -167,10 +169,22 @@ export default function Fotocopias() {
 
     const TableroTab = () => (
         <div className="flex flex-col h-full">
-            <div className="flex gap-3 mb-6">
-                <button onClick={() => { setNtAnio(null); setNtMats([]); setNtSolicitante(''); setNtCantidad('1'); setMNuevo(true); }} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm"><Plus size={20} /> Nuevo Trabajo (por Año)</button>
-                <button onClick={() => { setMmSolicitante(''); setMmMaterial(''); setMmCantidad('1'); setMmPrecio(''); setMManual(true); }} className="flex items-center gap-2 px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium shadow-sm"><Edit2 size={18} /> Trabajo Manual</button>
-                <button onClick={() => { setImpMaterial(''); setImpCantidad('1'); setMImpresion(true); }} className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium shadow-sm"><Printer size={18} /> Registrar Impresión</button>
+            <div className="flex justify-between items-center mb-6 flex-col sm:flex-row gap-4">
+                <div className="flex gap-3 w-full sm:w-auto">
+                    <button onClick={() => { setNtAnio(null); setNtMats([]); setNtSolicitante(''); setNtCantidad('1'); setMNuevo(true); }} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm"><Plus size={20} /> Nuevo Trabajo</button>
+                    <button onClick={() => { setMmSolicitante(''); setMmMaterial(''); setMmCantidad('1'); setMmPrecio(''); setMManual(true); }} className="flex items-center gap-2 px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium shadow-sm"><Edit2 size={18} /> Manual</button>
+                    <button onClick={() => { setImpMaterial(''); setImpCantidad('1'); setMImpresion(true); }} className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium shadow-sm"><Printer size={18} /> Impresión</button>
+                </div>
+                <div className="relative w-full sm:w-64">
+                    <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                        type="text"
+                        placeholder="Buscar trabajo..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 shadow-sm text-sm"
+                    />
+                </div>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-0">
                 <Column title="Pendientes" status="pendiente" icon={Clock} colorClass="border-orange-400" bgClass="bg-orange-50/50" />

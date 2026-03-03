@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Users, Plus, Calculator, ArrowLeft } from 'lucide-react';
+import { Users, Plus, Calculator, ArrowLeft, Search } from 'lucide-react';
 import api from '../api';
+import { matchSearch } from '../utils';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
 const today = () => new Date().toLocaleDateString('es-AR');
@@ -9,6 +10,7 @@ export default function Libreta() {
     const [clientes, setClientes] = useState([]);
     const [selectedClient, setSelectedClient] = useState(null);
     const [notif, setNotif] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const reload = async () => {
         try {
@@ -134,17 +136,31 @@ export default function Libreta() {
         );
     }
 
+    const filteredClientes = clientes.filter(c => matchSearch(searchQuery, c.nombre, c.telefono));
+
     return (
         <div className="p-8">
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex justify-between items-center mb-6 flex-col sm:flex-row gap-4">
                 <h2 className="text-3xl font-bold text-gray-800">Libreta de Fiados</h2>
-                <button onClick={handleNewClient} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all">
-                    <Plus size={20} /> Nuevo Cliente
-                </button>
+                <div className="flex gap-3 w-full sm:w-auto flex-col sm:flex-row">
+                    <div className="relative w-full sm:w-64">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Buscar cliente..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 shadow-sm text-sm"
+                        />
+                    </div>
+                    <button onClick={handleNewClient} className="flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-sm transition-all whitespace-nowrap">
+                        <Plus size={20} /> Nuevo Cliente
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {clientes.map(client => {
+                {filteredClientes.map(client => {
                     const isDebit = client.saldo_total > 0;
                     return (
                         <div
@@ -169,7 +185,7 @@ export default function Libreta() {
                         </div>
                     )
                 })}
-                {clientes.length === 0 && <p className="text-center py-12 text-gray-400 text-lg col-span-4">No hay clientes. Creá uno con el botón de arriba.</p>}
+                {filteredClientes.length === 0 && <p className="text-center py-12 text-gray-400 text-lg col-span-4">{searchQuery ? 'No se encontraron clientes' : 'No hay clientes. Creá uno con el botón de arriba.'}</p>}
             </div>
         </div>
     );

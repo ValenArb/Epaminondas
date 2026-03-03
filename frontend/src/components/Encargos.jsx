@@ -767,37 +767,60 @@ export default function Encargos() {
             </div>
         </div>
     );
-    const StockTab = () => (
-        <div>
-            <div className="flex justify-between items-center mb-6">
-                <p className="text-gray-500">Al ingresar stock, se asignan automáticamente a pedidos pendientes.</p>
-                <button onClick={() => setMStock(true)} className="flex items-center gap-2 px-5 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium shadow-sm transition-all"><Package size={20} /> Ingresar Libros</button>
+    const StockTab = () => {
+        const filteredStock = stock.filter(s => {
+            if (!searchQuery) return true;
+            return s.titulo.toLowerCase().includes(searchQuery.toLowerCase());
+        });
+
+        return (
+            <div>
+                <div className="flex justify-between items-center mb-6 flex-col sm:flex-row gap-4">
+                    <p className="text-gray-500">Al ingresar stock, se asignan automáticamente a pedidos pendientes.</p>
+                    <div className="flex gap-3 w-full sm:w-auto flex-col sm:flex-row">
+                        <div className="relative w-full sm:w-64">
+                            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Buscar en stock..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 shadow-sm text-sm"
+                            />
+                        </div>
+                        <button onClick={() => setMStock(true)} className="flex items-center justify-center gap-2 px-5 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium shadow-sm transition-all whitespace-nowrap"><Package size={20} /> Ingresar Libros</button>
+                    </div>
+                </div>
+                <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+                    <table className="w-full text-left">
+                        <thead className="bg-gray-50 border-b"><tr>
+                            <th className="p-5 font-semibold text-gray-600">Título</th>
+                            <th className="p-5 font-semibold text-gray-600">Tipo</th>
+                            <th className="p-5 font-semibold text-gray-600 text-center">Cantidad</th>
+                            <th className="p-5 font-semibold text-gray-600 text-center">Acciones</th>
+                        </tr></thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {filteredStock.map(s => (
+                                <tr key={s.id} className="hover:bg-gray-50"><td className="p-5 font-bold text-gray-800">{s.titulo}</td>
+                                    <td className="p-5"><span className={`px-3 py-1 rounded-full text-sm font-bold ${s.tipo === 'nuevo' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>{s.tipo === 'nuevo' ? '📗 Nuevo' : '📙 Usado'}</span></td>
+                                    <td className="p-5 text-center"><span className="text-2xl font-black">{s.cantidad}</span></td>
+                                    <td className="p-5 text-center">
+                                        <button onClick={async () => { const s2 = { ...s, cantidad: Math.max(0, s.cantidad - 1) }; try { await api.updateStock(s.id, { titulo: s2.titulo, tipo: s2.tipo, cantidad: s2.cantidad }); setStock(stock.map(x => x.id === s.id ? s2 : x)); } catch { notify('❌ Error'); } }}
+                                            disabled={s.cantidad === 0} className="text-sm px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium disabled:opacity-40 disabled:cursor-not-allowed">-1</button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {filteredStock.length === 0 && (
+                                <tr><td colSpan="4" className="p-12 text-center text-gray-400 text-lg">
+                                    {searchQuery ? 'No se encontraron libros con esa búsqueda.' : 'No hay libros en stock.'}
+                                </td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b"><tr>
-                        <th className="p-5 font-semibold text-gray-600">Título</th>
-                        <th className="p-5 font-semibold text-gray-600">Tipo</th>
-                        <th className="p-5 font-semibold text-gray-600 text-center">Cantidad</th>
-                        <th className="p-5 font-semibold text-gray-600 text-center">Acciones</th>
-                    </tr></thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {stock.map(s => (
-                            <tr key={s.id} className="hover:bg-gray-50"><td className="p-5 font-bold text-gray-800">{s.titulo}</td>
-                                <td className="p-5"><span className={`px-3 py-1 rounded-full text-sm font-bold ${s.tipo === 'nuevo' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>{s.tipo === 'nuevo' ? '📗 Nuevo' : '📙 Usado'}</span></td>
-                                <td className="p-5 text-center"><span className="text-2xl font-black">{s.cantidad}</span></td>
-                                <td className="p-5 text-center">
-                                    <button onClick={async () => { const s2 = { ...s, cantidad: Math.max(0, s.cantidad - 1) }; try { await api.updateStock(s.id, { titulo: s2.titulo, tipo: s2.tipo, cantidad: s2.cantidad }); setStock(stock.map(x => x.id === s.id ? s2 : x)); } catch { notify('❌ Error'); } }}
-                                        disabled={s.cantidad === 0} className="text-sm px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium disabled:opacity-40 disabled:cursor-not-allowed">-1</button>
-                                </td>
-                            </tr>
-                        ))}
-                        {stock.length === 0 && <tr><td colSpan="4" className="p-12 text-center text-gray-400 text-lg">No hay libros en stock.</td></tr>}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
+        );
+    };
 
     // Collect all known book titles for autocomplete
     const knownTitles = useMemo(() => {
